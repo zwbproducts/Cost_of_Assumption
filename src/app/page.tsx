@@ -107,8 +107,8 @@ export default function Page() {
     }
   };
 
-  const exportPacket = () => {
-    window.open("/api/test/export", "_blank");
+  const exportPacket = (format: "json" | "csv") => {
+    window.open(`/api/test/export?format=${format}`, "_blank");
   };
 
   const classify = async () => {
@@ -225,11 +225,18 @@ export default function Page() {
           Execute live (explicit approval)
         </button>
         <button
-          onClick={exportPacket}
+          onClick={() => exportPacket("json")}
           disabled={!p}
           className="rounded-md bg-slate-700 hover:bg-slate-600 disabled:opacity-50 px-4 py-2 font-medium"
         >
-          Export evidence packet
+          Export packet (JSON)
+        </button>
+        <button
+          onClick={() => exportPacket("csv")}
+          disabled={!p}
+          className="rounded-md bg-slate-700 hover:bg-slate-600 disabled:opacity-50 px-4 py-2 font-medium"
+        >
+          Export packet (CSV)
         </button>
         <button
           onClick={reset}
