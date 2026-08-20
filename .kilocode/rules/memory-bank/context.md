@@ -14,6 +14,15 @@ The template is a clean Next.js 16 starter with TypeScript and Tailwind CSS 4. I
 - [x] ESLint configuration
 - [x] Memory bank documentation
 - [x] Recipe system for common features
+- [x] Built "Bridge Validation: Cost of an Unchecked Assumption" MVP (safe vertical slice)
+  - Deterministic simulation engine (no credentials) producing full evidence packet
+  - Safety guards: spend cap, chain/contract/recipient allowlists, approval, kill switch
+  - Append-only hash-chained event store (in-memory for tests, file-persisted singleton for app)
+  - API routes: config, define, simulate, live (gated), classify, export, reset
+  - Dashboard: banner, headline, 3 cards, config/assumption/evidence, timeline, expected-vs-observed, control panel, classification, export
+  - Tests (bun test): spend cap, allowlists, duplicate execution, missing approval, kill switch, RPC failure, simulation safety, hash-chain integrity
+  - Design doc at docs/DESIGN.md (threat model, data model, mermaid, scenario, assumptions, plan)
+  - Live execution path gated behind guards + explicit approval + injected provider; no real signing backend wired yet (returns LIVE_NOT_CONFIGURED)
 
 ## Current Structure
 
@@ -85,3 +94,4 @@ export async function GET() {
 | Date | Changes |
 |------|---------|
 | Initial | Template created with base setup |
+| 2026-08-20 | Built Bridge Validation MVP: simulation-first safe vertical slice, safety guards, hash-chained store, dashboard, tests, design doc |
