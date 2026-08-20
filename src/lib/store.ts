@@ -1,4 +1,5 @@
 import { promises as fs } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import type {
   AgentOutput,
@@ -80,14 +81,22 @@ export interface Store {
  */
 export function createStore(opts: StoreOptions = {}): Store {
   const persist = opts.persist ?? true;
-  const dataDir = opts.dir ?? path.join(process.cwd(), ".data");
+  // Serverless runtimes (e.g. AWS Lambda) have a read-only cwd but a writable
+  // /tmp. Persist there so the demo keeps working across warm invocations;
+  // if even that fails we fall back to in-memory state and never throw.
+  const dataDir = opts.dir ?? path.join(os.tmpdir(), "cost-of-assumption-data");
   const runFile = path.join(dataDir, "run.json");
   let run: TestRun = emptyRun();
+  let persistBroken = false;
 
   async function persistNow(): Promise<void> {
-    if (!persist) return;
-    await fs.mkdir(dataDir, { recursive: true });
-    await fs.writeFile(runFile, JSON.stringify(run, null, 2), "utf8");
+    if (!persist || persistBroken) return;
+    try {
+      await fs.mkdir(dataDir, { recursive: true });
+      await fs.writeFile(runFile, JSON.stringify(run, null, 2), "utf8");
+    } catch {
+      persistBroken = true;
+    }
   }
 
   function lastHash(): Hex {
