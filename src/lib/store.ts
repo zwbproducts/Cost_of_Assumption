@@ -11,9 +11,25 @@ import type {
   ObservableEvent,
   OnChainResult,
   TestConfig,
+  DecisionInput,
+  DecisionOutput,
+  Provenance,
+  NegativeControlResult,
+  ChainVerification,
+  HashChainVerification,
 } from "./types";
 import { GENESIS, hashEvent } from "./hash";
+import { runNegativeControls } from "./controls";
 import type { EventType } from "./types";
+
+export const CLAIM =
+  "A bounded deterministic simulation demonstrated that an allowlist and spend " +
+  "cap can permit an action that violates the reviewer's expected amount.";
+export const NON_CLAIMS_EXTRA = [
+  "This does not establish general agent behaviour, hidden reasoning, intent, " +
+  "deception, or real-world customer loss.",
+];
+
 
 const SCHEMA_VERSION = "bridge-validation/1.0";
 
@@ -29,7 +45,12 @@ export interface TestRun {
   onChain: OnChainResult | null;
   divergence: Divergence[];
   controlAnalysis: ControlAnalysis | null;
-  recovery: "reversed" | "unrecoverable_within_test" | "not_applicable" | null;
+  decisionInput: DecisionInput | null;
+  decisionOutput: DecisionOutput | null;
+  agentProvenance: Provenance | null;
+  testedAgent: (Provenance & { isDeterministicFixture: boolean; note: string }) | null;
+  negativeControls: NegativeControlResult[];
+  recovery: "simulated_reversal" | "reversed" | "unrecoverable_within_test" | "not_applicable" | null;
   classification: Classification | null;
   executed: boolean;
   executedAt: string | null;
@@ -43,6 +64,11 @@ function emptyRun(): TestRun {
     onChain: null,
     divergence: [],
     controlAnalysis: null,
+    decisionInput: null,
+    decisionOutput: null,
+    agentProvenance: null,
+    testedAgent: null,
+    negativeControls: [],
     recovery: null,
     classification: null,
     executed: false,
@@ -67,7 +93,14 @@ export interface Store {
   setOnChain(onChain: OnChainResult): Promise<void>;
   setDivergence(d: Divergence[]): Promise<void>;
   setControlAnalysis(c: ControlAnalysis): Promise<void>;
-  setRecovery(r: "reversed" | "unrecoverable_within_test" | "not_applicable"): Promise<void>;
+  setSimulationMeta(meta: {
+    decisionInput: DecisionInput;
+    decisionOutput: DecisionOutput;
+    agentProvenance: Provenance;
+    testedAgent: Provenance & { isDeterministicFixture: boolean; note: string };
+  }): Promise<void>;
+  setNegativeControls(): Promise<void>;
+  setRecovery(r: "simulated_reversal" | "reversed" | "unrecoverable_within_test" | "not_applicable"): Promise<void>;
   markExecuted(at: string): Promise<void>;
   setClassification(c: Classification): Promise<void>;
   reset(): Promise<void>;
@@ -152,6 +185,17 @@ export function createStore(opts: StoreOptions = {}): Store {
       run.controlAnalysis = c;
       await persistNow();
     },
+    async setSimulationMeta(meta) {
+      run.decisionInput = meta.decisionInput;
+      run.decisionOutput = meta.decisionOutput;
+      run.agentProvenance = meta.agentProvenance;
+      run.testedAgent = meta.testedAgent;
+      await persistNow();
+    },
+    async setNegativeControls() {
+      run.negativeControls = runNegativeControls();
+      await persistNow();
+    },
     async setRecovery(r) {
       run.recovery = r;
       await persistNow();
@@ -178,17 +222,47 @@ export function createStore(opts: StoreOptions = {}): Store {
     },
     buildPacket(): EvidencePacket {
       if (!run.config) throw new Error("No test configuration initialized.");
+      const verification: HashChainVerification = (() => {
+        const chain = verifyChain(run.events);
+        return {
+          ok: chain.ok,
+          brokenAt: chain.brokenAt,
+          packetHash: "0x" as Hex,
+          canonicalRule:
+            "packetHash = sha256(prevHash + '|' + canonicalize(sorted(packetWithoutHash)))",
+        };
+      })();
+      const chainVerification: ChainVerification = {
+        verified: run.config.mode === "live" && run.executed,
+        note:
+          run.config.mode === "live"
+            ? run.executed
+              ? "Live receipt verified against configured Sepolia RPC."
+              : "No live receipt; nothing verified on chain."
+            : "Simulation only: no chain verification performed; all values are SIMULATED FIXTURE.",
+      };
       const packet: EvidencePacket = {
         schemaVersion: SCHEMA_VERSION,
+        runId: run.config.runId,
+        mode: run.config.mode,
         config: run.config,
         events: run.events,
         agent: run.agent!,
         onChain: run.onChain!,
         divergence: run.divergence,
         controlAnalysis: run.controlAnalysis!,
+        decisionInput: run.decisionInput!,
+        decisionOutput: run.decisionOutput!,
         recovery: run.recovery ?? "not_applicable",
         classification: run.classification,
-        nonClaims: NON_CLAIMS,
+        classificationRequiredBeforeExport: true,
+        agentProvenance: run.agentProvenance!,
+        testedAgent: run.testedAgent!,
+        chainVerification,
+        negativeControls: run.negativeControls,
+        claim: CLAIM,
+        nonClaims: [...NON_CLAIMS, ...NON_CLAIMS_EXTRA],
+        verification,
         generatedAt: new Date().toISOString(),
         packetHash: "0x" as Hex,
       };
@@ -197,6 +271,7 @@ export function createStore(opts: StoreOptions = {}): Store {
           run.events.length ? run.events[run.events.length - 1].hash : GENESIS,
           { packet: packetWithoutHash(packet) },
         )) as Hex;
+      packet.verification.packetHash = packet.packetHash;
       return packet;
     },
   };

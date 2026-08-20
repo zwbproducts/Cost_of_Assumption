@@ -22,6 +22,13 @@ export async function POST() {
   await store.setDivergence(sim.divergence);
   await store.setControlAnalysis(sim.controlAnalysis);
   await store.setRecovery(sim.recovery);
+  await store.setSimulationMeta({
+    decisionInput: sim.decisionInput,
+    decisionOutput: sim.decisionOutput,
+    agentProvenance: sim.agentProvenance,
+    testedAgent: sim.testedAgent,
+  });
+  await store.setNegativeControls();
 
   return NextResponse.json({ ok: true, packet: store.buildPacket(), mode: cfg.mode });
 }

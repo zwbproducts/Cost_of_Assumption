@@ -48,9 +48,10 @@ export default function Page() {
   const [exportError, setExportError] = useState<string | null>(null);
 
   // classification form
-  const [result, setResult] = useState("contradicted");
+  const [result, setResult] = useState("unresolved");
   const [reason, setReason] = useState("");
   const [by, setBy] = useState("");
+  const [reviewerRole, setReviewerRole] = useState("bridge-safety reviewer");
   const [uncertainty, setUncertainty] = useState("");
   const [alternative, setAlternative] = useState("");
   const [nextControl, setNextControl] = useState("");
@@ -151,7 +152,7 @@ export default function Page() {
       const r = await fetch("/api/test/classify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ result, reason, by, uncertainty, alternative, nextControl }),
+        body: JSON.stringify({ result, reason, by, reviewerRole, uncertainty, alternative, nextControl }),
       });
       const data = await r.json();
       if (!data.ok) {
@@ -178,8 +179,17 @@ export default function Page() {
       {/* Headline */}
       <header className="space-y-2">
         <h1 className="text-3xl sm:text-4xl font-bold leading-tight">
-          The transaction succeeded.{" "}
-          <span className="text-rose-400">The decision was still unsafe.</span>
+          {mode === "live" ? (
+            <>
+              The verified transaction succeeded.{" "}
+              <span className="text-rose-400">The decision was still unsafe.</span>
+            </>
+          ) : (
+            <>
+              The simulated transaction succeeded.{" "}
+              <span className="text-rose-400">The decision was still unsafe.</span>
+            </>
+          )}
         </h1>
         <p className="text-slate-400 max-w-3xl">
           A bounded demonstration of how an AI agent can take a valid but unsafe
@@ -192,7 +202,9 @@ export default function Page() {
       {p && (
         <section className="rounded-lg border border-slate-800 bg-slate-900/40 p-4 space-y-4">
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-2 text-sm">
+            <Field label="Run ID" value={p.runId} />
             <Field label="Test ID" value={p.config.testId} />
+            <Field label="Mode" value={p.mode} />
             <Field label="Timestamp" value={p.config.createdAt} />
             <Field label="Network" value={`${p.config.network.name} (${p.config.network.chainId})`} />
             <Field label="Wallet" value={`${p.config.wallet.label} · ${trunc(p.config.wallet.address)}`} />
@@ -202,6 +214,10 @@ export default function Page() {
             />
             <Field label="Recipient" value={trunc(p.config.recipient)} />
           </div>
+          <p className="text-xs text-amber-300">
+            Wallet, contract, and recipient addresses below are SIMULATED FIXTURE
+            placeholder values (no private key, no real funds).
+          </p>
 
           <div className="text-sm">
             <h2 className="font-semibold text-sky-300 mb-1">Bridge Validation assumption under test</h2>
@@ -353,8 +369,14 @@ export default function Page() {
                 <p className="text-sm text-slate-400">No on-chain result.</p>
               ) : (
                 <ul className="text-sm space-y-1">
+                  {p.onChain.synthetic && (
+                    <li><span className="text-xs font-semibold text-amber-300">SIMULATED FIXTURE — not a real chain transaction</span></li>
+                  )}
                   <li>Status: <span className={p.onChain.status === "success" ? "text-emerald-400" : "text-rose-400"}>{p.onChain.status}</span></li>
-                  <li className="font-mono text-xs break-all">Tx: {p.onChain.txHash ? trunc(p.onChain.txHash, 12) : "—"}</li>
+                  <li className="font-mono text-xs break-all">
+                    {p.onChain.synthetic ? "Simulated tx id: " : "Tx: "}
+                    {p.onChain.simulatedTxId || p.onChain.txHash ? trunc(p.onChain.simulatedTxId ?? p.onChain.txHash!, 12) : "—"}
+                  </li>
                   <li>Recipient: <span className="font-mono text-xs">{trunc(p.onChain.recipient)}</span></li>
                   <li>Gas cost: <span className="text-slate-200">{p.onChain.gasCost}</span></li>
                   {p.onChain.explorerUrl && (
@@ -482,15 +504,81 @@ export default function Page() {
                   <option value="unsuitable">unsuitable</option>
                 </select>
                 <input value={by} onChange={(e) => setBy(e.target.value)} placeholder="Classifier identity" className="bg-slate-800 rounded p-2" />
+                <input value={reviewerRole} onChange={(e) => setReviewerRole(e.target.value)} placeholder="Reviewer role" className="bg-slate-800 rounded p-2" />
                 <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Reason" className="bg-slate-800 rounded p-2 sm:col-span-2" />
                 <input value={uncertainty} onChange={(e) => setUncertainty(e.target.value)} placeholder="Uncertainty" className="bg-slate-800 rounded p-2" />
                 <input value={alternative} onChange={(e) => setAlternative(e.target.value)} placeholder="Alternative explanation" className="bg-slate-800 rounded p-2" />
                 <input value={nextControl} onChange={(e) => setNextControl(e.target.value)} placeholder="Next control to test" className="bg-slate-800 rounded p-2 sm:col-span-2" />
+                <p className="text-xs text-amber-300 sm:col-span-2">
+                  Export is blocked until a classification is recorded with reason,
+                  uncertainty, alternative, and reviewer role.
+                </p>
                 <button onClick={classify} disabled={busy} className="bg-sky-600 hover:bg-sky-500 disabled:opacity-50 rounded p-2 font-medium">
                   Record classification
                 </button>
               </div>
             )}
+          </section>
+
+          {/* Negative controls */}
+          {p.negativeControls?.length ? (
+            <section className="rounded-lg border border-slate-800 bg-slate-900/50 p-4 space-y-2">
+              <h2 className="font-semibold">Negative &amp; positive controls</h2>
+              <ul className="text-sm space-y-1">
+                {p.negativeControls.map((c) => (
+                  <li key={c.id} className="border-t border-slate-800 pt-1">
+                    <span className={
+                      c.outcome === "passed" || c.outcome === "blocked"
+                        ? "text-emerald-400"
+                        : c.outcome === "escalated"
+                        ? "text-amber-300"
+                        : "text-rose-300"
+                    }>{c.outcome}</span>{" "}
+                    <span className="text-slate-200">{c.name}</span>
+                    <span className="block text-xs text-slate-500">{c.expectation} — {c.detail}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+
+          {/* Decision provenance (proves non-injection) */}
+          <section className="rounded-lg border border-slate-800 bg-slate-900/50 p-4 space-y-2">
+            <h2 className="font-semibold">Decision provenance (why 5.0 TEST was selected)</h2>
+            <p className="text-xs text-slate-400">
+              The selected amount is derived from this explicit input packet via a
+              deterministic rule — not asserted at the result site.
+            </p>
+            <pre className="text-xs bg-slate-900 border border-slate-800 rounded p-3 overflow-auto max-h-64 whitespace-pre-wrap break-all">
+{JSON.stringify({ decisionInput: p.decisionInput, decisionOutput: p.decisionOutput }, null, 2)}
+            </pre>
+            <p className="text-xs text-slate-500">
+              Rule: <span className="text-slate-200">{p.decisionOutput?.rule}</span>
+            </p>
+          </section>
+
+          {/* Provenance */}
+          <section className="rounded-lg border border-slate-800 bg-slate-900/40 p-4 grid sm:grid-cols-2 gap-4 text-sm">
+            <div>
+              <h2 className="font-semibold text-sky-300 mb-1">App implementation provenance</h2>
+              <p>Provider: {p.agentProvenance?.provider}</p>
+              <p>Model: {p.agentProvenance?.model}</p>
+              <p>Role: {p.agentProvenance?.role}</p>
+              <p className="text-xs text-slate-400">Source: {p.agentProvenance?.source}</p>
+            </div>
+            <div>
+              <h2 className="font-semibold text-amber-300 mb-1">Agent under test</h2>
+              <p>Provider: {p.testedAgent?.provider}</p>
+              <p>Model: {p.testedAgent?.model}</p>
+              <p>Role: {p.testedAgent?.role}</p>
+              <p className="text-xs text-amber-300">{p.testedAgent?.note}</p>
+            </div>
+          </section>
+
+          {/* Claim */}
+          <section className="rounded-lg border border-emerald-800/50 bg-emerald-950/20 p-4">
+            <h2 className="font-semibold mb-1 text-sm text-emerald-300">Claim</h2>
+            <p className="text-sm text-slate-200">{p.claim}</p>
           </section>
 
           {/* Non-claims */}

@@ -18,6 +18,13 @@ describe("evidence packet CSV export", () => {
     await s.setDivergence(sim.divergence);
     await s.setControlAnalysis(sim.controlAnalysis);
     await s.setRecovery(sim.recovery);
+    await s.setSimulationMeta({
+      decisionInput: sim.decisionInput,
+      decisionOutput: sim.decisionOutput,
+      agentProvenance: sim.agentProvenance,
+      testedAgent: sim.testedAgent,
+    });
+    await s.setNegativeControls();
     const classification: Classification = {
       result: "contradicted",
       reason: "agent exceeded expected amount",

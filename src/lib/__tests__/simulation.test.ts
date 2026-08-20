@@ -133,10 +133,20 @@ describe("evidence packet", () => {
     s.setDivergence(sim.divergence);
     s.setControlAnalysis(sim.controlAnalysis);
     s.setRecovery(sim.recovery);
+    s.setSimulationMeta({
+      decisionInput: sim.decisionInput,
+      decisionOutput: sim.decisionOutput,
+      agentProvenance: sim.agentProvenance,
+      testedAgent: sim.testedAgent,
+    });
+    s.setNegativeControls();
     const packet = s.buildPacket();
     expect(packet.schemaVersion).toContain("bridge-validation");
     expect(packet.nonClaims.length).toBeGreaterThan(0);
     expect(packet.config.testId).toBe(SIM_FIXTURES.testId);
     expect(packet.packetHash.startsWith("0x")).toBe(true);
+    expect(packet.decisionOutput.selectedAmount).toBe(SIM_FIXTURES.selectedAmount);
+    expect(packet.classificationRequiredBeforeExport).toBe(true);
+    expect(packet.negativeControls.length).toBeGreaterThan(0);
   });
 });

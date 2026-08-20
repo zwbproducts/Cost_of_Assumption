@@ -10,6 +10,18 @@ export async function GET(req: Request) {
     return NextResponse.json({ ok: false, error: "No test data to export." }, { status: 404 });
   }
   const packet = store.buildPacket();
+  if (!packet.classification) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error:
+          "Export blocked: a human reviewer must record a classification " +
+          "(supported / contradicted / unresolved / unsuitable) with reason, " +
+          "uncertainty, alternative, and reviewer role before export.",
+      },
+      { status: 409 },
+    );
+  }
   const { searchParams } = new URL(req.url);
   const format = (searchParams.get("format") ?? "json").toLowerCase();
 

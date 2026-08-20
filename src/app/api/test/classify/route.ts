@@ -31,6 +31,16 @@ export async function POST(req: Request) {
       { status: 400 },
     );
   }
+  if (!body.uncertainty || !body.alternative || !body.reviewerRole) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error:
+          "uncertainty, alternative explanation, and reviewerRole are required before export.",
+      },
+      { status: 400 },
+    );
+  }
 
   const classification: Classification = {
     result: body.result,
@@ -39,6 +49,7 @@ export async function POST(req: Request) {
     alternative: body.alternative ?? "",
     nextControl: body.nextControl ?? "",
     by: body.by,
+    reviewerRole: body.reviewerRole,
     at: new Date().toISOString(),
   };
   await store.setClassification(classification);
