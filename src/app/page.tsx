@@ -44,6 +44,8 @@ export default function Page() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [liveResult, setLiveResult] = useState<string | null>(null);
+  const [exportText, setExportText] = useState<string | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   // classification form
   const [result, setResult] = useState("contradicted");
@@ -107,8 +109,40 @@ export default function Page() {
     }
   };
 
-  const exportPacket = (format: "json" | "csv") => {
-    window.open(`/api/test/export?format=${format}`, "_blank");
+  const fetchExport = async (format: "json" | "csv"): Promise<string | null> => {
+    setExportError(null);
+    const res = await fetch(`/api/test/export?format=${format}`);
+    if (!res.ok) {
+      const data = await res.json().catch(() => null);
+      setExportError(data?.error ?? `Export failed (${res.status}).`);
+      setExportText(null);
+      return null;
+    }
+    return await res.text();
+  };
+
+  const viewExport = async (format: "json" | "csv") => {
+    const text = await fetchExport(format);
+    if (text !== null) setExportText(text);
+  };
+
+  const downloadExport = async (format: "json" | "csv") => {
+    const text = await fetchExport(format);
+    if (text === null) return;
+    const mime = format === "csv" ? "text/csv" : "application/json";
+    const blob = new Blob([text], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `bridge-validation-${state?.packet?.config.testId ?? "export"}.${format}`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const copyExport = async () => {
+    if (exportText) await navigator.clipboard.writeText(exportText);
   };
 
   const classify = async () => {
@@ -225,18 +259,32 @@ export default function Page() {
           Execute live (explicit approval)
         </button>
         <button
-          onClick={() => exportPacket("json")}
-          disabled={!p}
+          onClick={() => viewExport("json")}
+          disabled={!p || busy}
           className="rounded-md bg-slate-700 hover:bg-slate-600 disabled:opacity-50 px-4 py-2 font-medium"
         >
-          Export packet (JSON)
+          View JSON
         </button>
         <button
-          onClick={() => exportPacket("csv")}
-          disabled={!p}
+          onClick={() => viewExport("csv")}
+          disabled={!p || busy}
           className="rounded-md bg-slate-700 hover:bg-slate-600 disabled:opacity-50 px-4 py-2 font-medium"
         >
-          Export packet (CSV)
+          View CSV
+        </button>
+        <button
+          onClick={() => downloadExport("json")}
+          disabled={!p || busy}
+          className="rounded-md border border-slate-600 hover:bg-slate-800 disabled:opacity-50 px-4 py-2 font-medium"
+        >
+          Download JSON
+        </button>
+        <button
+          onClick={() => downloadExport("csv")}
+          disabled={!p || busy}
+          className="rounded-md border border-slate-600 hover:bg-slate-800 disabled:opacity-50 px-4 py-2 font-medium"
+        >
+          Download CSV
         </button>
         <button
           onClick={reset}
@@ -254,10 +302,28 @@ export default function Page() {
       </section>
 
       {msg && <div className="text-sm text-slate-300">{msg}</div>}
+      {exportError && <div className="text-sm text-rose-400">{exportError}</div>}
       {liveResult && (
         <pre className="text-xs bg-slate-900 border border-slate-800 rounded p-3 overflow-auto">
           {JSON.stringify(liveResult, null, 2)}
         </pre>
+      )}
+
+      {exportText && (
+        <section className="rounded-lg border border-slate-800 bg-slate-900/40 p-4 space-y-2">
+          <div className="flex items-center justify-between">
+            <h2 className="font-semibold text-sky-300">Evidence packet export</h2>
+            <button
+              onClick={copyExport}
+              className="rounded-md border border-slate-600 hover:bg-slate-800 px-3 py-1 text-sm font-medium"
+            >
+              Copy
+            </button>
+          </div>
+          <pre className="text-xs bg-slate-900 border border-slate-800 rounded p-3 overflow-auto max-h-96 whitespace-pre-wrap break-all">
+            {exportText}
+          </pre>
+        </section>
       )}
 
       {!p && (
