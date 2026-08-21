@@ -335,33 +335,59 @@ export default function Page() {
           <div className="rounded-lg border border-sky-800/50 bg-sky-950/20 p-4 space-y-3">
             <h2 className="font-semibold">What the human reviewer must decide</h2>
             <p className="text-xs text-slate-400">
-              Record a classification before exporting. Export is blocked until this is completed.
+              Pick one verdict, then explain it. <span className="text-amber-300">Export is blocked until you record a classification.</span>
             </p>
+
             {p.classification ? (
               <div className="text-sm space-y-1">
-                <p>Result: <span className="text-sky-300">{p.classification.result}</span></p>
-                <p>By: {p.classification.by} ({p.classification.reviewerRole}) at {p.classification.at}</p>
+                <p>Verdict: <span className="text-sky-300 font-semibold">{p.classification.result}</span></p>
+                <p>Classifier: {p.classification.by} ({p.classification.reviewerRole}) at {p.classification.at}</p>
                 <p>Reason: {p.classification.reason}</p>
                 <p className="text-xs text-slate-400">Uncertainty: {p.classification.uncertainty}</p>
-                <p className="text-xs text-slate-400">Alternative: {p.classification.alternative}</p>
-                <p className="text-xs text-slate-400">Next control: {p.classification.nextControl}</p>
+                <p className="text-xs text-slate-400">Alternative explanation: {p.classification.alternative}</p>
+                <p className="text-xs text-slate-400">Next control to test: {p.classification.nextControl}</p>
               </div>
             ) : (
-              <div className="grid sm:grid-cols-2 gap-3 text-sm">
-                <select value={result} onChange={(e) => setResult(e.target.value)} className="bg-slate-800 rounded p-2">
-                  <option value="supported">supported</option>
-                  <option value="contradicted">contradicted</option>
-                  <option value="unresolved">unresolved</option>
-                  <option value="unsuitable">unsuitable</option>
-                </select>
-                <input value={by} onChange={(e) => setBy(e.target.value)} placeholder="Classifier identity" className="bg-slate-800 rounded p-2" />
-                <input value={reviewerRole} onChange={(e) => setReviewerRole(e.target.value)} placeholder="Reviewer role" className="bg-slate-800 rounded p-2" />
-                <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Reason" className="bg-slate-800 rounded p-2 sm:col-span-2" />
-                <input value={uncertainty} onChange={(e) => setUncertainty(e.target.value)} placeholder="Uncertainty" className="bg-slate-800 rounded p-2" />
-                <input value={alternative} onChange={(e) => setAlternative(e.target.value)} placeholder="Alternative explanation" className="bg-slate-800 rounded p-2" />
-                <input value={nextControl} onChange={(e) => setNextControl(e.target.value)} placeholder="Next control to test" className="bg-slate-800 rounded p-2 sm:col-span-2" />
-                <button onClick={classify} disabled={busy} className="bg-sky-600 hover:bg-sky-500 disabled:opacity-50 rounded p-2 font-medium">
-                  Record classification
+              <div className="space-y-3 text-sm">
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1">1) Your verdict</label>
+                  <select value={result} onChange={(e) => setResult(e.target.value)} className="bg-slate-800 rounded p-2 w-full">
+                    <option value="supported">supported — the evidence supports the claim</option>
+                    <option value="contradicted">contradicted — the evidence contradicts the claim</option>
+                    <option value="unresolved">unresolved — not enough to decide (default)</option>
+                    <option value="unsuitable">unsuitable — this test does not answer the question</option>
+                  </select>
+                </div>
+                <div className="grid sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-1">2) Your name / classifier identity</label>
+                    <input value={by} onChange={(e) => setBy(e.target.value)} placeholder="e.g. J. Rivera" className="bg-slate-800 rounded p-2 w-full" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-1">3) Your role</label>
+                    <input value={reviewerRole} onChange={(e) => setReviewerRole(e.target.value)} placeholder="e.g. bridge-safety reviewer" className="bg-slate-800 rounded p-2 w-full" />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1">4) Reason (why you chose this verdict)</label>
+                  <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Explain your reasoning" className="bg-slate-800 rounded p-2 w-full" />
+                </div>
+                <div className="grid sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-1">5) Uncertainty</label>
+                    <input value={uncertainty} onChange={(e) => setUncertainty(e.target.value)} placeholder="What are you unsure about?" className="bg-slate-800 rounded p-2 w-full" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-1">6) Alternative explanation</label>
+                    <input value={alternative} onChange={(e) => setAlternative(e.target.value)} placeholder="Another way to read this?" className="bg-slate-800 rounded p-2 w-full" />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1">7) Next control to test</label>
+                  <input value={nextControl} onChange={(e) => setNextControl(e.target.value)} placeholder="What should be tested next?" className="bg-slate-800 rounded p-2 w-full" />
+                </div>
+                <button onClick={classify} disabled={busy} className="bg-sky-600 hover:bg-sky-500 disabled:opacity-50 rounded p-2 font-medium w-full">
+                  Record classification (unlocks export)
                 </button>
               </div>
             )}
