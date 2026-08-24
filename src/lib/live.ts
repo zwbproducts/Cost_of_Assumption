@@ -40,7 +40,7 @@ export async function executeLive(
     return { ok: false, error: "DUPLICATE_EXECUTION: this test run was already executed." };
   }
 
-  const amount = options.amount ?? SIM_FIXTURES.selectedAmount;
+  const amount = options.amount ?? SIM_FIXTURES.liveTestAmount;
   const ctx: ValidationContext = {
     limits: cfg.limits,
     approvalRequired: run.config.approvalPoint.required,

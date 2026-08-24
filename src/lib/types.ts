@@ -38,6 +38,14 @@ export interface EvidenceItem {
   uncertainty: string;
 }
 
+export interface RetailOption {
+  id: string;
+  label: string;
+  cost: string;
+  positioning: string;
+  visibility: string;
+}
+
 export interface TestConfig {
   runId: string;
   testId: TestId;
@@ -51,6 +59,13 @@ export interface TestConfig {
   expectedAction: ExpectedAction;
   approvalPoint: ApprovalPoint;
   approvalRecord: ApprovalRecord;
+  brandBrief: string;
+  approvedCategories: string[];
+  approvedChannels: string[];
+  availableEvidence: EvidenceItem[];
+  intendedPositioning: string;
+  options: RetailOption[];
+  selectedOptionId: string;
   evidenceBefore: EvidenceItem[];
   successCriterion: string;
   assumptionUnderTest: string;
@@ -207,6 +222,11 @@ export interface EvidencePacket {
   schemaVersion: string;
   runId: string;
   mode: Mode;
+  brandBrief: string;
+  options: RetailOption[];
+  intendedPositioning: string;
+  selectedOptionLabel: string;
+  observedResultSentence: string;
   config: TestConfig;
   events: ObservableEvent[];
   agent: AgentOutput;

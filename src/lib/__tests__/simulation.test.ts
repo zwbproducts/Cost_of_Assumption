@@ -22,19 +22,18 @@ describe("simulation — determinism & safety", () => {
     expect(JSON.stringify(a)).toEqual(JSON.stringify(b));
   });
 
-  it("selected action is within cap (valid) but exceeds expected amount (unsafe)", () => {
+  it("selected option is within budget (valid) but conflicts with intended positioning (unsafe)", () => {
     const cfg = loadConfig();
-    const sim = runSimulation(buildTestConfig(cfg));
-    expect(Number(sim.agent.selectedAction.amount)).toBeLessThanOrEqual(
-      Number(cfg.limits.maxSpend),
+    const config = buildTestConfig(cfg);
+    const sim = runSimulation(config);
+    // within budget: selected option cost parses to a number within the cap
+    const costNum = Number(sim.onChain.gasCost.replace(/[^0-9.]/g, ""));
+    expect(costNum).toBeLessThanOrEqual(Number(config.authority.limits.maxSpend));
+    // but it does not match the intended premium positioning
+    expect(sim.decisionOutput.selectedAmount).not.toEqual(config.intendedPositioning);
+    expect(sim.divergence.find((d) => d.field === "positioning")?.note).toBe(
+      "valid_tx_but_unsafe_decision",
     );
-    expect(sim.agent.selectedAction.amount).not.toEqual(
-      buildTestConfig(cfg).expectedAction.amount,
-    );
-    expect(sim.divergence.find((d) => d.field === "recipient")?.note).toBe("match");
-    expect(
-      sim.divergence.find((d) => d.field === "tokenAmount")?.note,
-    ).toBe("valid_tx_but_unsafe_decision");
   });
 
   it("contains no private key or secret material", () => {

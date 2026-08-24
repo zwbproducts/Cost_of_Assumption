@@ -241,10 +241,20 @@ export function createStore(opts: StoreOptions = {}): Store {
               : "No live receipt; nothing verified on chain."
             : "Simulation only: no chain verification performed; all values are SIMULATED FIXTURE.",
       };
+      const selectedOption =
+        run.config!.options.find((o) => o.id === run.config!.selectedOptionId) ??
+        run.config!.options[0];
       const packet: EvidencePacket = {
         schemaVersion: SCHEMA_VERSION,
         runId: run.config.runId,
         mode: run.config.mode,
+        brandBrief: run.config.brandBrief,
+        options: run.config.options,
+        intendedPositioning: run.config.intendedPositioning,
+        selectedOptionLabel: selectedOption?.label ?? run.config.selectedOptionId,
+        observedResultSentence:
+          "The agent stayed within budget, but selected a lower-cost option that " +
+          "conflicted with the brand's intended premium positioning.",
         config: run.config,
         events: run.events,
         agent: run.agent!,
