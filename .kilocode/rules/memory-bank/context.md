@@ -118,4 +118,5 @@ export async function GET() {
 | Initial | Template created with base setup |
 | 2026-08-20 | Built Bridge Validation MVP: simulation-first safe vertical slice, safety guards, hash-chained store, dashboard, tests, design doc |
 | 2026-08-26 | Monified `/dashboard` + `globals.css`: light Monday.com aesthetic, group-header dots, severity bars, status pills, print styles; rewritten `page.tsx` with board/risk/heatmap/summary/audit/blockchain views, local Badge/StatusPill, RiskIcon added to ui.tsx; all green (typecheck, lint, build, 84 tests) |
-| 2026-08-26 | Colour-first UX: SVG `HeatRing` badges (green→amber→red), `ColorKey` legend, data-driven column accents (colored top border), severity-coloured leading bars + hover glow borders that shift with risk data, metric hover pop; decision-aid kept text-light |
+| 2026-08-26 | Colour-first UX: SVG `HeatRing` badges, `ColorKey` legend, severity-coloured leading bars + hover glow borders, metric hover pop; decision-aid kept text-light |
+| 2026-08-26 | Replaced slot table + prose with graphical `SlotCanvas` 9-tile grid (colour-coded, hover glow/scale, boundary-violation dots, legend) + animated risk-map markers; trimmed prose to short captions |

@@ -5,7 +5,7 @@ import { RiskIcon, Avatar, Button, SeverityIcon } from "@/components/ui";
 import type { ClassificationRequest, DashboardState, RiskEntry, Verdict, WorkflowRun } from "@/lib/bv/types";
 import { canExport, loadState, newRun, saveReview } from "@/lib/bv/client";
 import { summarize } from "@/lib/bv/workflow";
-import { evidenceCoverage, heatScoreFormula, isRiskRed, riskCellPosition, riskPositionConsistent, severityToPillClass, reviewStatusPill } from "@/lib/bv/view";
+import { evidenceCoverage, heatScoreFormula, isRiskRed, riskCellPosition, riskPositionConsistent, reviewStatusPill } from "@/lib/bv/view";
 
 const VIEWS: { id: string; label: string }[] = [
   { id: "board", label: "Board" },
@@ -315,7 +315,7 @@ function renderBoard(
           <span className={`status-pill ${within ? "pill-ok" : "pill-bad"}`}>{within ? "PASS" : "FAIL"}</span>
         </div>
         <p className="text-slate-800 font-medium">{run.config.complianceMinimum.description}</p>
-        {!within && <p className="mt-2 text-sm text-rose-700">The workflow maximized add-to-cart but let organic-snack share drop to {totals.complianceShare.toFixed(1)}%, below the {min}% red-line.</p>}
+        {!within && <span className="inline-flex items-center gap-1.5 mt-2 text-xs"><span className="h-2 w-2 rounded-full bg-rose-500" />Below the red-line of {min}% — visualised below.</span>}
       </div>
 
       <div className="board-card">
@@ -346,49 +346,69 @@ function renderBoard(
         {selectedRisk && <RiskDetail risk={selectedRisk} run={run} />}
       </div>
 
-      <div className="board-card">
-        <h2 className="text-sm font-semibold text-slate-600 mb-3">Slot observations</h2>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-slate-400 text-xs font-medium">
-                <th className="text-left py-2">Slot</th>
-                <th className="text-left py-2">Category</th>
-                <th className="text-right py-2">Add-to-cart</th>
-                <th className="text-right py-2">Share</th>
-                <th className="text-center py-2">Compliant?</th>
-                <th className="text-center py-2">Boundary</th>
-              </tr>
-            </thead>
-            <tbody>
-              {run.observations.slots
-                .filter((s) => filter === "all" || (filter === "violated" ? !s.withinBoundary : filter === "compliant" ? s.isCompliance : true))
-                .map((s) => (
-                  <tr key={s.slot} className="border-t border-slate-200">
-                    <td className="py-2">{s.slot}</td>
-                    <td className="py-2">{s.category}</td>
-                    <td className="text-right py-2">{s.actualAdd}</td>
-                    <td className="text-right py-2">{s.shareOfHome.toFixed(1)}%</td>
-                    <td className="text-center py-2">{s.isCompliance ? "yes" : "—"}</td>
-                    <td className="text-center py-2">
-                      <Badge tone={s.withinBoundary ? "ok" : "bad"}>{s.withinBoundary ? "yes" : "no"}</Badge>
-                    </td>
-                  </tr>
-                ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <SlotCanvas run={run} min={min} within={within} />
+    </div>
+  );
+}
 
-      <div className="board-card">
-        <h2 className="text-sm font-semibold text-slate-600 mb-3">Declared vs Observed</h2>
-        <ul className="text-sm text-slate-600 space-y-1">
-          <li>Intended: compliance share ≥ {min}% · Observed: <span className={within ? "text-emerald-700 font-medium" : "text-rose-700 font-medium"}>{totals.complianceShare.toFixed(1)}%</span></li>
-          <li>Compliant slots: <span className="text-rose-700 font-semibold">{run.observations.slots.filter((s) => s.isCompliance).length} / {run.observations.slots.length}</span></li>
-          <li>Boundary check: <span className={within ? "text-emerald-700 font-medium" : "text-rose-700 font-medium"}>{within ? "PASS" : "FAIL"}</span></li>
-        </ul>
+function SlotCanvas({ run, min, within }: { run: WorkflowRun; min: number; within: boolean }) {
+  const slots = run.observations.slots;
+  const maxAdd = Math.max(1, ...slots.map((s) => s.actualAdd));
+  const colFor = (s: (typeof slots)[number]) => {
+    if (!s.withinBoundary) return "bad";
+    if (s.isCompliance) return "ok";
+    return "warn";
+  };
+  const labelFor = (s: (typeof slots)[number]) => (s.isCompliance ? "organic" : s.category);
+  return (
+    <div className="board-card">
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-sm font-semibold text-slate-600">Homepage slot grid (9 slots)</h2>
+        <span className={`status-pill ${within ? "pill-ok" : "pill-bad"}`}>{within ? "All green" : `${slots.filter((s) => !s.withinBoundary).length} violations`}</span>
+      </div>
+      <p className="text-xs text-slate-400 mb-2">Color = boundary status. Hover a tile for detail. Green = compliant, red = violated red-line, amber = non-compliance slot.</p>
+      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-9 gap-2">
+        {slots.map((s) => {
+          const tone = colFor(s) as Tone;
+          const col = TONE_COLOR[tone];
+          const full = s.withinBoundary && s.isCompliance;
+          return (
+            <div
+              key={s.slot}
+              tabIndex={0}
+              role="button"
+              aria-label={`Slot ${s.slot}: ${s.category}, ${s.actualAdd} add-to-cart, ${s.shareOfHome.toFixed(1)}% share, ${s.withinBoundary ? "within" : "outside"} boundary`}
+              title={`Slot ${s.slot} · ${s.category} · +${s.actualAdd} ATC · ${s.shareOfHome.toFixed(1)}% · ${s.withinBoundary ? "within" : "VIOLATES"} red-line`}
+              className={`relative rounded-xl border-2 transition-all duration-200 hover:scale-105 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-sky-400 ${full ? "bg-emerald-50 border-emerald-200" : !s.withinBoundary ? "bg-rose-50 border-rose-200" : "bg-amber-50 border-amber-200"}`}
+            >
+              <div className="flex flex-col items-center justify-center h-16 p-1">
+                <span className={`mono-chip text-[10px]`}>S{s.slot}</span>
+                <span className={`text-xs font-semibold`} style={{ color: col }}>{s.actualAdd}</span>
+              </div>
+              {!s.withinBoundary && (
+                <div className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-rose-500 shadow" title="Boundary violation" />
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <div className="mt-3 flex flex-wrap gap-3 text-xs">
+        <Dot color={TONE_COLOR.ok} label="Compliant organic slot" />
+        <Dot color={TONE_COLOR.warn} label="Non-compliance slot (electronics)" />
+        <Dot color={TONE_COLOR.bad} label="Boundary violation" />
+        <Dot color={TONE_COLOR.neutral} label="Share target ≥ {min}%" note={`${run.observations.totals.complianceShare.toFixed(1)}% actual`} />
       </div>
     </div>
+  );
+}
+
+function Dot({ color, label, note }: { color: string; label: string; note?: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span className="h-2.5 w-2.5 rounded-full" style={{ background: color, boxShadow: `0 0 5px ${color}` }} />
+      <span className="text-slate-500">{label}</span>
+      {note && <span className="text-slate-400 mono-chip">{note}</span>}
+    </span>
   );
 }
 
@@ -448,7 +468,7 @@ function RiskItem({ risk, onSelect, selected }: { risk: RiskEntry; onSelect: () 
       >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <div className="font-medium text-sm text-slate-800">{risk.threat}</div>
+          <div className="risk-title font-medium text-sm text-slate-800">{risk.threat}</div>
           <p className="text-sm text-slate-500 mt-0.5 line-clamp-2">{risk.rationale}</p>
         </div>
         <Badge tone={risk.severity}>{risk.severity}</Badge>
@@ -529,8 +549,8 @@ function renderRiskMap(run: WorkflowRun, selectedRisk: RiskEntry | null, setSele
                 type="button"
                 aria-label={`cell likelihood ${c.likelihood} impact ${c.impact}${match ? `: ${match.threat}` : ""}`}
                 onClick={() => match && setSelectedRiskId(match.id)}
-                className={`border rounded-xl p-2 text-xs text-left transition-colors focus:outline-none focus:ring-2 focus:ring-sky-500 ${
-                  match ? "border-rose-200 bg-rose-50 hover:border-rose-300 cursor-pointer" : "border-slate-200 bg-slate-100/60 text-slate-400"
+                className={`border rounded-xl p-2 text-xs text-left transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-sky-500 ${
+                  match ? "border-rose-200 bg-rose-50 hover:scale-105 hover:border-rose-300 hover:shadow-md cursor-pointer" : "border-slate-200 bg-slate-100/60 text-slate-400"
                 }`}
               >
                 {match ? (
