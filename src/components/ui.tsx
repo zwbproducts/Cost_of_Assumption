@@ -74,6 +74,14 @@ export function Avatar({ name, initials }: { name: string; initials?: string }) 
   );
 }
 
+export function RiskIcon({ className }: { className?: string }) {
+  return (
+    <svg aria-hidden="true" className={`w-5 h-5 text-slate-400 ${className ?? ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 9v4m0 4h.01M10.07 2.82L4.19 5.3C3.5 5.63 3 6.42 3 7.2V12c0 5-6 9-6 9h18s-6-4-6-9V7.2c0-.78-.51-1.57-1.1-1.9z" />
+    </svg>
+  );
+}
+
 export function SeverityIcon({ severity }: { severity: "ok" | "warn" | "bad" }) {
   if (severity === "ok") {
     return (

@@ -1,26 +1,36 @@
 "use client";
 
 import { useCallback, useRef, useState, type ReactNode } from "react";
-import { Avatar, Badge, BoardTabs, Button, Card, EmptyState, Qa, Row, SeverityIcon, StatusPill } from "@/components/ui";
-import type { ClassificationRequest, DashboardState, RiskEntry, SlotObservation, Verdict, WorkflowRun } from "@/lib/bv/types";
+import { RiskIcon, Avatar, Button, SeverityIcon } from "@/components/ui";
+import type { ClassificationRequest, DashboardState, RiskEntry, Verdict, WorkflowRun } from "@/lib/bv/types";
 import { canExport, loadState, newRun, saveReview } from "@/lib/bv/client";
 import { summarize } from "@/lib/bv/workflow";
-import {
-  evidenceCoverage,
-  heatScoreFormula,
-  isRiskRed,
-  reviewStatusPill,
-  riskCellPosition,
-} from "@/lib/bv/view";
+import { evidenceCoverage, heatScoreFormula, isRiskRed, riskCellPosition, riskPositionConsistent, severityToPillClass, reviewStatusPill } from "@/lib/bv/view";
 
 const VIEWS: { id: string; label: string }[] = [
   { id: "board", label: "Board" },
   { id: "risk", label: "Risk map" },
   { id: "heatmap", label: "Heatmap" },
-  { id: "summary", label: "Executive summary" },
+  { id: "summary", label: "Summary" },
   { id: "audit", label: "Audit / sign-off" },
   { id: "blockchain", label: "Blockchain evidence" },
 ];
+
+const GROUPS: { id: string; label: string; tone: "new" | "warn" | "ok" }[] = [
+  { id: "new", label: "New", tone: "new" },
+  { id: "review", label: "In review", tone: "warn" },
+  { id: "approved", label: "Approved", tone: "ok" },
+];
+
+const PILL_CLASSES = {
+  ok: "pill-ok",
+  warn: "pill-warn",
+  bad: "pill-bad",
+  neutral: "pill-new",
+  new: "pill-new",
+  blue: "pill-blue",
+  purple: "pill-purple",
+} as const;
 
 export default function DashboardPage() {
   const [state, setState] = useState<DashboardState>(() => loadState());
@@ -44,6 +54,7 @@ export default function DashboardPage() {
     try {
       const { state: s, run: r } = await newRun();
       setState(s);
+      setSelectedRiskId(null);
       setMsg(`New simulation run created: ${r.runId}`);
     } catch (e) {
       setMsg(`Error: ${(e as Error).message}`);
@@ -108,27 +119,28 @@ export default function DashboardPage() {
     setMsg("Local state reset. No real system was touched.");
   }, []);
 
-  const handlePrint = useCallback(() => {
-    window.print();
-  }, []);
+  const handlePrint = useCallback(() => window.print(), []);
 
   if (!run) {
     return (
-      <main className="min-h-screen bg-slate-950 text-slate-100">
+      <main className="min-h-screen bg-slate-50 text-slate-900">
         <Banner />
         <div className="max-w-6xl mx-auto p-6 space-y-6">
           <header className="space-y-1">
             <h1 className="text-2xl sm:text-3xl font-bold leading-tight">Homepage Brand Choice — Cost of an Unchecked Assumption</h1>
-            <p className="text-slate-400 text-sm">
+            <p className="text-slate-500 text-sm">
               A Monday.com-style workflow board for AI governance. An AI recommendation workflow that maximizes add-to-cart
-              can satisfy its goal while quietly violating a stated compliance red-line. Click Run simulation to see the board.
+              can quietly violate a stated compliance red-line. Click Run simulation to see the board.
             </p>
           </header>
-          <EmptyState
-            title="No run yet"
-            description="Click Run simulation to populate the board with simulated fixtures."
-            action={<Button onClick={createRun} disabled={busy}>{busy ? "Working…" : "Run deterministic simulation"}</Button>}
-          />
+          <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center">
+            <RiskIcon className="mx-auto h-10 w-10 text-slate-300" />
+            <h2 className="mt-3 text-lg font-semibold text-slate-700">No run yet</h2>
+            <p className="mt-1 text-sm text-slate-500">Click Run simulation to populate the board with simulated fixtures.</p>
+            <div className="mt-4">
+              <Button onClick={createRun} disabled={busy} className="mx-auto">{busy ? "Working…" : "Run deterministic simulation"}</Button>
+            </div>
+          </div>
         </div>
         <PrintStyles />
       </main>
@@ -143,47 +155,63 @@ export default function DashboardPage() {
   const exportOk = canExport(run);
   const coverage = evidenceCoverage(run);
   const selectedRisk = selectedRiskId ? run.risks.find((r) => r.id === selectedRiskId) ?? null : null;
+  const visibleRisks = filter === "all" ? run.risks : run.risks.filter((r) => (filter === "violated" ? r.severity === "bad" : r.severity === filter));
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100">
+    <main className="min-h-screen bg-slate-50 text-slate-900">
       <Banner />
-      <div className="border-b border-slate-800 bg-slate-900/30 px-4 py-3 flex items-center justify-between">
+
+      {/* Board header */}
+      <div className="board-header sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white/80 backdrop-blur px-4 py-2.5">
         <div className="flex items-center gap-4 overflow-x-auto">
-          <h2 className="font-semibold whitespace-nowrap">Homepage Brand Choice Simulation</h2>
-          <span className="text-xs text-slate-500">• {run.runId}</span>
-          <BoardTabs tabs={VIEWS} value={view} onChange={setView} />
+          <div className="flex items-center gap-2">
+            <span className="font-semibold text-sky-700">Homepage Brand Choice Simulation</span>
+            <span className="mono-chip">{run.runId}</span>
+          </div>
+          <nav className="board-tabpanel flex items-center gap-0.5">
+            {VIEWS.map((v) => (
+              <button
+                key={v.id}
+                onClick={() => setView(v.id)}
+                className={`board-tab ${view === v.id ? "board-tab-active" : ""}`}
+                aria-current={view === v.id ? "page" : undefined}
+              >
+                {v.label}
+              </button>
+            ))}
+          </nav>
         </div>
-        <div className="flex items-center gap-2">
-          <select value={filter} onChange={(e) => setFilter(e.target.value)} className="bg-slate-800 border border-slate-700 rounded px-2 py-1 text-sm text-slate-200">
+        <div className="flex items-center gap-2 print:hidden">
+          <select value={filter} onChange={(e) => setFilter(e.target.value)} className="border border-slate-200 rounded-lg px-2.5 py-1 text-sm text-slate-700 bg-white">
             <option value="all">All items</option>
             <option value="bad">Red only</option>
             <option value="warn">Amber only</option>
             <option value="violated">Violated slots</option>
             <option value="compliant">Compliant slots</option>
           </select>
-          <Button onClick={() => handleExport("json")} disabled={!exportOk || busy}>Download JSON</Button>
-          <Button onClick={() => handleExport("csv")} disabled={!exportOk || busy}>Download CSV</Button>
-          <button onClick={handlePrint} className="text-xs text-slate-400 hover:text-slate-200 border border-slate-700 rounded px-2 py-1 no-print">Print view</button>
+          <div className="w-px h-5 bg-slate-200" />
+          <Button onClick={() => handleExport("json")} disabled={!exportOk || busy} className="print:hidden">Download JSON</Button>
+          <Button onClick={() => handleExport("csv")} disabled={!exportOk || busy} className="print:hidden">Download CSV</Button>
+          <button onClick={handlePrint} className="text-xs text-slate-500 hover:text-slate-800 border border-slate-200 rounded-lg px-2.5 py-1 print:hidden">Print view</button>
+          <button onClick={handleReset} className="text-xs text-slate-500 hover:text-rose-600 border border-slate-200 rounded-lg px-2.5 py-1 print:hidden">Reset</button>
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto p-4">
-        {msg && <div className={`text-sm mb-3 ${msg?.includes("Error") || msg?.includes("blocked") ? "text-rose-300" : "text-slate-300"}`}>{msg}</div>}
+      <div className="max-w-6xl mx-auto p-6 space-y-6">
+        {msg && <div className={`text-sm ${msg?.includes("Error") || msg?.includes("blocked") ? "text-rose-600" : "text-slate-600"}`}>{msg}</div>}
 
         {!exportOk && (
-          <div className="mb-3 rounded-md border border-amber-500/30 bg-amber-950/20 px-3 py-2 text-xs text-amber-200">
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
             Export is blocked until a human sign-off is recorded. Review status: {run.review ? run.review.verdict : "unreviewed"}.
           </div>
         )}
 
-        {view === "board" && renderBoard(run, heat, totals, min, within, filter, selectedRisk, setSelectedRiskId)}
+        {view === "board" && renderBoard(run, heat, totals, min, within, filter, visibleRisks, selectedRisk, setSelectedRiskId)}
         {view === "risk" && renderRiskMap(run, selectedRisk, setSelectedRiskId)}
         {view === "heatmap" && renderHeatmap(run, heat, coverage, summary)}
         {view === "summary" && renderSummary(run, summary, heat, within, exportOk)}
         {view === "audit" && renderAudit(run, selectedRisk, { reviewer, setReviewer, verdict, setVerdict, reason, setReason, uncertainty, setUncertainty, alternative, setAlternative, handleClassify, busy, exportOk })}
         {view === "blockchain" && renderBlockchain(run)}
-
-        <DecisionAidNote run={run} />
       </div>
       <PrintStyles />
     </main>
@@ -192,20 +220,8 @@ export default function DashboardPage() {
 
 function Banner() {
   return (
-    <div className="border-b border-amber-500/40 bg-amber-500/10 px-4 py-2 text-center font-semibold tracking-wide text-amber-200 text-sm">
+    <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-center font-semibold tracking-wide text-amber-800 text-sm print:hidden">
       SIMULATED FIXTURE — no real recommendation engine, no real customers, no real spend. All values are SIMULATED FIXTURES.
-    </div>
-  );
-}
-
-function DecisionAidNote({ run }: { run: WorkflowRun }) {
-  return (
-    <div className="mt-4 rounded-lg border border-slate-800 bg-slate-900/30 px-3 py-2 text-xs text-slate-300">
-      <span className="text-slate-400">Visualisation policy:</span> These graphics are <strong>decision aids</strong> generated from
-      recorded assessments — <strong>not proof</strong>. They show uncertainty and human review status only.
-      Human review status:{" "}
-      <Badge tone={reviewStatusPill(run.review ? "resolved" : "unreviewed")}>{run.review ? "signed-off" : "unreviewed"}</Badge>
-      {" · "}Last reviewed: {run.review?.at ?? "not yet"}.
     </div>
   );
 }
@@ -217,104 +233,117 @@ function renderBoard(
   min: number,
   within: boolean,
   filter: string,
+  risks: RiskEntry[],
   selectedRisk: RiskEntry | null,
   setSelectedRiskId: (id: string | null) => void,
 ) {
-  const risks = filter === "all" ? run.risks : run.risks.filter((r) => filter === "bad" ? r.severity === "bad" : filter === "warn" ? r.severity === "warn" : r.severity === filter);
   const columns = GROUPS.map((g) => ({
     ...g,
     items: risks.filter((r) => groupFor(r, run) === g.id),
   }));
 
   return (
-    <div className="space-y-5">
-      <Card title="At a glance">
-        <Qa q="Workflow" a="Homepage product recommendation (maximize add-to-cart)." />
-        <Qa q="Red-line" a={`Organic snack share ≥ ${min}% (compliance minimum).`} />
-        <Qa q="Observed share" a={`${totals.complianceShare.toFixed(1)}%`} />
-        <Qa q="Goal met?" a={`Yes — total add-to-cart ${totals.totalAdd}`} />
-        <Qa q="Within boundary?" a={within ? "YES" : "NO"} />
-      </Card>
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+        <MetricCard label="Compliance share" value={`${totals.complianceShare.toFixed(1)}%`} sub={`required ≥ ${min}%`} tone={within ? "ok" : "bad"} />
+        <MetricCard label="Aggregate heat" value={`${Math.round(heat.aggregate * 100)}/100`} sub={`composition ${Math.round(heat.composition * 100)} · maximize ${Math.round(heat.maximize * 100)}`} tone={within ? "ok" : "warn"} />
+        <MetricCard label="Add-to-cart (total)" value={String(totals.totalAdd)} sub="simulated" tone="neutral" />
+        <MetricCard label="Open risks" value={String(risks.length)} sub={`${risks.filter((r) => r.severity === "bad").length} red`} tone={risks.some((r) => r.severity === "bad") ? "bad" : "warn"} />
+      </div>
 
-      <Card title="Declared boundary (red-line)">
-        <div className="flex items-center gap-3">
-          <div className={`text-2xl font-bold ${within ? "text-emerald-300" : "text-rose-300"}`}>{within ? "PASS" : "FAIL"}</div>
-          <div className="text-slate-200">{run.config.complianceMinimum.description}</div>
-          <SeverityIcon severity={within ? "ok" : "bad"} />
+      <div className="board-card">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold text-slate-600">Declared boundary (red-line)</h2>
+          <span className={`status-pill ${within ? "pill-ok" : "pill-bad"}`}>{within ? "PASS" : "FAIL"}</span>
         </div>
-        {!within && <div className="mt-2 text-sm text-rose-300">Share dropped to {totals.complianceShare.toFixed(1)}%.</div>}
-      </Card>
+        <p className="text-slate-800 font-medium">{run.config.complianceMinimum.description}</p>
+        {!within && <p className="mt-2 text-sm text-rose-700">The workflow maximized add-to-cart but let organic-snack share drop to {totals.complianceShare.toFixed(1)}%, below the {min}% red-line.</p>}
+      </div>
 
-      <Card title="Risk board (grouped by status)">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      <div className="board-card">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold text-slate-600">Risk board (grouped by status)</h2>
+          <span className="text-xs text-slate-400">Click a card to view evidence and decision history.</span>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {columns.map((col) => (
-            <div key={col.id} className="border border-slate-800 rounded-lg p-2 bg-slate-900/30">
-              <div className="flex items-center gap-2 mb-2">
-                <StatusPill status={col.status} label={col.label} />
-                <span className="text-xs text-slate-500">{col.items.length} items</span>
-              </div>
-              <div className="space-y-2 min-h-[60px]">
+            <div key={col.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <div className="group-header mb-2">
+                    <span className="flex items-center gap-2">
+                      <span className={`dot dot-${col.tone}`} />
+                      <span className="ml-1 text-xs text-slate-500">{col.label}</span>
+                      <span className="pill-count">{col.items.length}</span>
+                    </span>
+                  </div>
+              <div className="space-y-2 min-h-[80px]">
                 {col.items.length === 0 ? (
-                  <div className="text-xs text-slate-500 py-4 text-center">No items</div>
+                  <p className="text-xs text-slate-400 py-4 text-center">No items</p>
                 ) : (
-                  col.items.map((r) => (
-                    <RiskItem key={r.id} risk={r} onSelect={() => setSelectedRiskId(r.id)} selected={selectedRisk?.id === r.id} />
-                  ))
+                  col.items.map((r) => <RiskItem key={r.id} risk={r} onSelect={() => setSelectedRiskId(r.id)} selected={selectedRisk?.id === r.id} />)
                 )}
               </div>
             </div>
           ))}
         </div>
         {selectedRisk && <RiskDetail risk={selectedRisk} run={run} />}
-      </Card>
+      </div>
 
-      <Card title="Slot observations">
+      <div className="board-card">
+        <h2 className="text-sm font-semibold text-slate-600 mb-3">Slot observations</h2>
         <div className="overflow-x-auto">
-          <table className="text-xs w-full">
+          <table className="w-full text-sm">
             <thead>
-              <tr className="text-slate-400">
-                <th className="text-left py-1">#</th>
-                <th className="text-left py-1">Category</th>
-                <th className="text-right py-1">Add-to-cart</th>
-                <th className="text-right py-1">Share</th>
-                <th className="text-center py-1">Compliant?</th>
-                <th className="text-center py-1">Boundary</th>
+              <tr className="text-slate-400 text-xs font-medium">
+                <th className="text-left py-2">Slot</th>
+                <th className="text-left py-2">Category</th>
+                <th className="text-right py-2">Add-to-cart</th>
+                <th className="text-right py-2">Share</th>
+                <th className="text-center py-2">Compliant?</th>
+                <th className="text-center py-2">Boundary</th>
               </tr>
             </thead>
             <tbody>
-              {run.observations.slots.filter((s) => filter === "all" || (filter === "violated" ? !s.withinBoundary : filter === "compliant" ? s.isCompliance : true)).map((s) => (
-                <tr key={s.slot} className="border-t border-slate-800">
-                  <td className="py-1">{s.slot}</td>
-                  <td className="py-1">{s.category}</td>
-                  <td className="text-right py-1">{s.actualAdd}</td>
-                  <td className="text-right py-1">{s.shareOfHome.toFixed(1)}%</td>
-                  <td className="text-center py-1">{s.isCompliance ? "yes" : "—"}</td>
-                  <td className="text-center py-1">
-                    <Badge tone={s.withinBoundary ? "ok" : "bad"}>{s.withinBoundary ? "yes" : "no"}</Badge>
-                  </td>
-                </tr>
-              ))}
+              {run.observations.slots
+                .filter((s) => filter === "all" || (filter === "violated" ? !s.withinBoundary : filter === "compliant" ? s.isCompliance : true))
+                .map((s) => (
+                  <tr key={s.slot} className="border-t border-slate-200">
+                    <td className="py-2">{s.slot}</td>
+                    <td className="py-2">{s.category}</td>
+                    <td className="text-right py-2">{s.actualAdd}</td>
+                    <td className="text-right py-2">{s.shareOfHome.toFixed(1)}%</td>
+                    <td className="text-center py-2">{s.isCompliance ? "yes" : "—"}</td>
+                    <td className="text-center py-2">
+                      <Badge tone={s.withinBoundary ? "ok" : "bad"}>{s.withinBoundary ? "yes" : "no"}</Badge>
+                    </td>
+                  </tr>
+                ))}
             </tbody>
           </table>
         </div>
-      </Card>
+      </div>
 
-      <Card title="Declared vs Observed">
-        <ul className="text-sm text-slate-300 space-y-1">
-          <li>Intended: compliance share ≥ {min}% · Observed: <span className={within ? "text-emerald-300" : "text-rose-300"}>{totals.complianceShare.toFixed(1)}%</span></li>
-          <li>Compliant slots: <span className="text-rose-300 font-semibold">{run.observations.slots.filter((s) => s.isCompliance).length} / {run.observations.slots.length}</span></li>
-          <li>Boundary check: <span className={within ? "text-emerald-300" : "text-rose-300"}>{within ? "PASS" : "FAIL"}</span></li>
+      <div className="board-card">
+        <h2 className="text-sm font-semibold text-slate-600 mb-3">Declared vs Observed</h2>
+        <ul className="text-sm text-slate-600 space-y-1">
+          <li>Intended: compliance share ≥ {min}% · Observed: <span className={within ? "text-emerald-700 font-medium" : "text-rose-700 font-medium"}>{totals.complianceShare.toFixed(1)}%</span></li>
+          <li>Compliant slots: <span className="text-rose-700 font-semibold">{run.observations.slots.filter((s) => s.isCompliance).length} / {run.observations.slots.length}</span></li>
+          <li>Boundary check: <span className={within ? "text-emerald-700 font-medium" : "text-rose-700 font-medium"}>{within ? "PASS" : "FAIL"}</span></li>
         </ul>
-      </Card>
+      </div>
     </div>
   );
 }
 
-const GROUPS: { id: string; label: string; status: string }[] = [
-  { id: "new", label: "New", status: "new" },
-  { id: "review", label: "In review", status: "warn" },
-  { id: "approved", label: "Approved", status: "ok" },
-];
+function MetricCard({ label, value, sub, tone }: { label: string; value: string; sub: string; tone: "ok" | "bad" | "warn" | "neutral" }) {
+  const color = tone === "ok" ? "text-emerald-700" : tone === "bad" ? "text-rose-700" : tone === "warn" ? "text-amber-700" : "text-slate-600";
+  return (
+    <div className="metric-card">
+      <div className="text-xs text-slate-400">{label}</div>
+      <div className={`text-2xl font-bold ${color}`}>{value}</div>
+      <div className="text-xs text-slate-400 mt-0.5">{sub}</div>
+    </div>
+  );
+}
 
 function groupFor(risk: RiskEntry, run: WorkflowRun): "new" | "review" | "approved" {
   if (run.review && run.review.verdict === "approved" && !isRiskRed(risk)) return "approved";
@@ -323,87 +352,92 @@ function groupFor(risk: RiskEntry, run: WorkflowRun): "new" | "review" | "approv
 }
 
 function RiskItem({ risk, onSelect, selected }: { risk: RiskEntry; onSelect: () => void; selected: boolean }) {
+  const own = groupFor(risk, { review: null } as unknown as WorkflowRun) === "review";
   return (
-    <div
-      role="button"
-      tabIndex={0}
-      aria-label={`${risk.threat}, severity ${risk.severity}, click to view evidence`}
-      onClick={onSelect}
-      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(); } }}
-      className={`rounded-md border p-2.5 cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-sky-500 ${
-        selected ? "border-sky-500 bg-sky-950/20" : "border-slate-800 bg-slate-900/40 hover:border-sky-700/50"
-      }`}
-    >
+      <div
+        role="button"
+        tabIndex={0}
+        aria-label={`${risk.threat}, severity ${risk.severity}, click to view evidence`}
+        onClick={onSelect}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(); } }}
+        className={`item-card ${selected ? "selected" : ""} ${selected ? "" : risk.severity}`}
+      >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <div className="font-medium text-sm text-slate-100">{risk.threat}</div>
-          <div className="text-xs text-slate-400 mt-0.5 flex items-center gap-1.5">
-            <SeverityIcon severity={risk.severity} />
-            <span>severity: {risk.severity}</span>
-            <span>L:{risk.likelihood} • I:{risk.impact}</span>
-            <span>review: {risk.reviewStatus}</span>
-          </div>
+          <div className="font-medium text-sm text-slate-800">{risk.threat}</div>
+          <p className="text-sm text-slate-500 mt-0.5 line-clamp-2">{risk.rationale}</p>
         </div>
         <Badge tone={risk.severity}>{risk.severity}</Badge>
       </div>
+      <div className="flex items-center justify-between mt-2">
+        <div className="flex items-center gap-1.5 text-xs text-slate-500">
+          <span>L: {risk.likelihood}</span>
+          <span>I: {risk.impact}</span>
+          <StatusPill tone={reviewStatusPill(risk.reviewStatus)} label={risk.reviewStatus} />
+        </div>
+        <Avatar name={risk.id === "r1" ? "Compliance Officer" : "Owner TBD"} />
+      </div>
+      <div className={own ? "visible" : "hidden"} />
     </div>
   );
 }
 
 function RiskDetail({ risk, run }: { risk: RiskEntry; run: WorkflowRun }) {
   const pos = riskCellPosition(risk);
+  const consistent = riskPositionConsistent(risk);
   return (
-    <div className="mt-4 rounded-lg border border-sky-800/50 bg-sky-950/10 p-4" aria-label={`Detail for ${risk.threat}`}>
-      <div className="flex items-center gap-2 mb-2">
-        <h3 className="font-semibold text-sky-300">Risk detail: {risk.threat}</h3>
+    <div className="mt-4 board-card" aria-label={`Detail for ${risk.threat}`}>
+      <div className="flex items-center gap-2 mb-3">
+        <h3 className="font-semibold text-slate-800">Risk detail — {risk.threat}</h3>
         <SeverityIcon severity={risk.severity} />
       </div>
-      <div className="grid sm:grid-cols-3 gap-4 text-xs">
-        <div><span className="text-slate-400">Matrix cell </span><span className="text-slate-100">({pos.likelihood}, {pos.impact})</span></div>
-        <div><span className="text-slate-400">Likelihood </span><span className="text-slate-100">{risk.likelihoodLabel} ({risk.likelihood})</span></div>
-        <div><span className="text-slate-400">Impact </span><span className="text-slate-100">{risk.impactLabel} ({risk.impact})</span></div>
+      <p className="text-xs text-slate-500 mb-3">
+        Decision aid — not proof. Position ({pos.likelihood}, {pos.impact}) is {consistent ? "consistent" : "INCONSISTENT"} with labels.
+        Human review status: <Badge tone={reviewStatusPill(risk.reviewStatus)}>{risk.reviewStatus}</Badge>.
+      </p>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+        <div><span className="text-slate-400">Matrix cell </span><span className="text-slate-800 font-medium">({pos.likelihood}, {pos.impact})</span></div>
+        <div><span className="text-slate-400">Likelihood </span><span className="text-slate-800">{risk.likelihoodLabel} ({risk.likelihood})</span></div>
+        <div><span className="text-slate-400">Impact </span><span className="text-slate-800">{risk.impactLabel} ({risk.impact})</span></div>
       </div>
-      <div className="mt-2"><span className="text-slate-400">Rationale: </span><span className="text-slate-200">{risk.rationale}</span></div>
+      <div className="mt-2"><span className="text-slate-400">Rationale: </span><span className="text-slate-700">{risk.rationale}</span></div>
       <div className="mt-2">
-        <span className="text-slate-400">Evidence:</span>
-        <ul className="list-disc list-inside text-slate-200 mt-1 space-y-0.5">
+        <span className="text-slate-400">Evidence (direct quotes / artefacts):</span>
+        <ul className="list-disc list-inside text-slate-700 mt-1 space-y-0.5">
           {risk.evidence.map((e, i) => <li key={i}>{e}</li>)}
         </ul>
       </div>
       {risk.decisionLog.length > 0 && (
         <div className="mt-2">
           <span className="text-slate-400">Decision history:</span>
-          <ul className="list-disc list-inside text-slate-200 mt-1 space-y-0.5">
+          <ul className="list-disc list-inside text-slate-700 mt-1 space-y-0.5">
             {risk.decisionLog.map((d, i) => <li key={i}>{d}</li>)}
           </ul>
         </div>
       )}
       <div className="mt-2 flex items-center gap-2">
-        <span className="text-slate-400">Human review status:</span>
-        <Badge tone={reviewStatusPill(risk.reviewStatus)}>{risk.reviewStatus}</Badge>
-        <span className="text-xs text-slate-500">Run review: {run.review?.verdict ?? "unreviewed"}</span>
-      </div>
-      <div className="mt-2 text-xs text-slate-500">
-        Audit trail entries: {run.audit.length} · chain integrity: {run.chainOk ? "intact" : "BROKEN"}
+        <span className="text-slate-400">Run review:</span>
+        <Badge tone={run.review ? "ok" : "bad"}>{run.review?.verdict ?? "unreviewed"}</Badge>
+        <span className="text-slate-500">Audit entries: {run.audit.length} · chain: {run.chainOk ? "intact" : "BROKEN"}</span>
       </div>
     </div>
   );
 }
 
 function renderRiskMap(run: WorkflowRun, selectedRisk: RiskEntry | null, setSelectedRiskId: (id: string | null) => void) {
-  const cells = [];
-  for (let l = 3; l >= 1; l--) {
-    for (let i = 1; i <= 3; i++) cells.push({ likelihood: i, impact: l });
+  const grid = [];
+  for (let impact = 3; impact >= 1; impact--) {
+    for (let likelihood = 1; likelihood <= 3; likelihood++) grid.push({ likelihood, impact });
   }
   return (
-    <div className="space-y-3">
-      <Card title="Risk map — likelihood × impact (3×3)">
-        <p className="text-xs text-slate-400 mb-2">
-          Position = (likelihood, impact). Click or arrow-key a marker to open its evidence and decision history.
-          This is a decision aid, not proof.
-        </p>
+    <div className="space-y-4">
+      <div className="board-card">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold text-slate-600">Risk map — likelihood × impact (3×3)</h2>
+          <span className="text-xs text-slate-400">Decision aid, not proof. Click or arrow-key a marker to open evidence.</span>
+        </div>
         <div className="grid grid-cols-3 gap-2 aspect-video">
-          {cells.map((c) => {
+          {grid.map((c) => {
             const match = run.risks.find((r) => r.likelihood === c.likelihood && r.impact === c.impact);
             return (
               <button
@@ -411,109 +445,123 @@ function renderRiskMap(run: WorkflowRun, selectedRisk: RiskEntry | null, setSele
                 type="button"
                 aria-label={`cell likelihood ${c.likelihood} impact ${c.impact}${match ? `: ${match.threat}` : ""}`}
                 onClick={() => match && setSelectedRiskId(match.id)}
-                className={`border rounded-lg p-2 text-xs text-left transition-colors focus:outline-none focus:ring-2 focus:ring-sky-500 ${
-                  match ? "border-rose-800/50 bg-rose-950/10 hover:border-rose-600 cursor-pointer" : "border-slate-800 bg-slate-900/30 text-slate-500"
+                className={`border rounded-xl p-2 text-xs text-left transition-colors focus:outline-none focus:ring-2 focus:ring-sky-500 ${
+                  match ? "border-rose-200 bg-rose-50 hover:border-rose-300 cursor-pointer" : "border-slate-200 bg-slate-100/60 text-slate-400"
                 }`}
               >
                 {match ? (
                   <div>
-                    <div className="text-rose-300 font-medium line-clamp-2">{match.threat}</div>
-                    <div className="flex items-center gap-1 mt-1">
-                      <Badge tone={match.severity}>{match.severity}</Badge>
-                      <span className="text-slate-500">L{match.likelihood}•I{match.impact}</span>
-                    </div>
-                    <div className="text-slate-500 mt-1 line-clamp-1">{match.rationale}</div>
+                    <div className="text-rose-700 font-medium line-clamp-2">{match.threat}</div>
+                    <div className="mt-1"><Badge tone={match.severity}>{`L${match.likelihood}•I${match.impact} ${match.severity}`}</Badge></div>
                   </div>
                 ) : (
-                  <span>empty</span>
+                  "empty"
                 )}
               </button>
             );
           })}
         </div>
-      </Card>
+        <div className="mt-4 grid grid-cols-3 gap-2 text-xs text-slate-400">
+          <div className="text-center">Low likelihood</div>
+          <div className="text-center">Medium likelihood</div>
+          <div className="text-center">High likelihood</div>
+          <div className="text-center">Low impact</div>
+          <div className="text-center">Medium impact</div>
+          <div className="text-center">High impact</div>
+        </div>
+      </div>
       {selectedRisk && <RiskDetail risk={selectedRisk} run={run} />}
-      {!selectedRisk && (
-        <div className="text-xs text-slate-400">Select a risk marker on the map (or a card in the Board view) to inspect its evidence and decision history.</div>
-      )}
+      {!selectedRisk && <p className="text-xs text-slate-400">Select a risk marker to inspect its evidence and decision history.</p>}
     </div>
   );
 }
 
 function renderHeatmap(run: WorkflowRun, heat: { aggregate: number }, coverage: number, summary: { headline: string; bullets: string[]; verdict: Verdict }) {
   const areas = [
-    { name: "Authority & decision boundaries", score: 25, rag: "R", owner: run.config.redLineOwner, next: "Encode red-line as hard stop", evidence: 40 },
-    { name: "Evidence quality & provenance", score: 92, rag: "G", owner: "Data lead", next: "None", evidence: 95 },
-    { name: "Failure detection", score: 65, rag: "A", owner: "Platform", next: "Add drift alert", evidence: 60 },
-    { name: "Recovery & rollback", score: 40, rag: "R", owner: "SRE", next: "Define rollback gate", evidence: 30 },
-    { name: "Ownership & accountability", score: 55, rag: "A", owner: run.config.redLineOwner, next: "Assign compliance monitor", evidence: 50 },
-    { name: "Safety & business alignment", score: 30, rag: "R", owner: "Brand", next: "Reconcile objective weights", evidence: 25 },
+    { name: "Authority & decision boundaries", score: 25, rag: "R", owner: run.config.redLineOwner, next: "Encode red-line as hard stop", evidence: 40, open: 1 },
+    { name: "Evidence quality & provenance", score: 92, rag: "G", owner: "Data lead", next: "None", evidence: 95, open: 0 },
+    { name: "Failure detection", score: 65, rag: "A", owner: "Platform", next: "Add drift alert", evidence: 60, open: 1 },
+    { name: "Recovery & rollback", score: 40, rag: "R", owner: "SRE", next: "Define rollback gate", evidence: 30, open: 1 },
+    { name: "Ownership & accountability", score: 55, rag: "A", owner: run.config.redLineOwner, next: "Assign compliance monitor", evidence: 50, open: 1 },
+    { name: "Safety & business alignment", score: 30, rag: "R", owner: "Brand", next: "Reconcile objective weights", evidence: 25, open: 1 },
   ];
   return (
-    <div className="space-y-3">
-      <Card title="Heatmap — governance areas">
-        <p className="text-xs text-slate-400 mb-2">RAG status from recorded assessment. Scores are decision aids, not objective truth.</p>
+    <div className="space-y-4">
+      <div className="board-card">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold text-slate-600">Heatmap — governance areas</h2>
+          <span className="text-xs text-slate-400">Decision aid, not proof. Scores are recorded assessments.</span>
+        </div>
         <div className="overflow-x-auto">
-          <table className="text-xs w-full">
+          <table className="w-full text-sm">
             <thead>
-              <tr className="text-slate-400">
-                <th className="text-left py-1">Area</th>
-                <th className="center py-1">RAG</th>
-                <th className="text-right py-1">Score</th>
-                <th className="text-right py-1">Evidence</th>
-                <th className="text-left py-1">Open risks</th>
-                <th className="text-left py-1">Owner</th>
-                <th className="text-left py-1">Next action</th>
+              <tr className="text-slate-400 text-xs font-medium">
+                <th className="text-left py-2">Area</th>
+                <th className="text-center py-2">RAG</th>
+                <th className="text-right py-2">Score</th>
+                <th className="text-right py-2">Evidence</th>
+                <th className="text-left py-2">Open risks</th>
+                <th className="text-left py-2">Owner</th>
+                <th className="text-left py-2">Next action</th>
               </tr>
             </thead>
             <tbody>
-              {areas.map((a) => {
-                const ragTone = a.rag === "G" ? "ok" as const : a.rag === "A" ? "warn" as const : "bad" as const;
-                return (
-                  <tr key={a.name} className="border-t border-slate-800">
-                    <td className="py-1">{a.name}</td>
-                    <td className="text-center py-1">
-                      <StatusPill status={a.rag === "G" ? "ok" : a.rag === "A" ? "warn" : "bad"} label={a.rag} />
-                    </td>
-                    <td className="text-right py-1">{a.score}</td>
-                    <td className="text-right py-1">{a.evidence}%</td>
-                    <td className="py-1">{a.rag === "R" ? "1+" : a.rag === "A" ? "1" : "0"}</td>
-                    <td className="py-1">{a.owner}</td>
-                    <td className="py-1">{a.next}</td>
-                  </tr>
-                );
-              })}
+              {areas.map((a) => (
+                <tr key={a.name} className="border-t border-slate-200">
+                  <td className="py-2">{a.name}</td>
+                  <td className="text-center py-2"><StatusPill tone={a.rag.toLowerCase() as "ok" | "warn" | "bad"} label={a.rag} /></td>
+                  <td className="text-right py-2 font-medium">{a.score}</td>
+                  <td className="text-right py-2">{a.evidence}%</td>
+                  <td className="py-2">{a.open}</td>
+                  <td className="py-2">{a.owner}</td>
+                  <td className="py-2">{a.next}</td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
-        <div className="mt-2 text-xs text-slate-500">
+        <div className="mt-3 text-xs text-slate-500">
           Overall evidence coverage: {coverage}% · Heat score: {Math.round(heat.aggregate * 100)}/100 · Formula: {heatScoreFormula()}
         </div>
-      </Card>
+      </div>
     </div>
   );
 }
 
 function renderSummary(run: WorkflowRun, summary: { headline: string; bullets: string[]; verdict: Verdict }, heat: { aggregate: number; withinBoundary: boolean }, within: boolean, exportOk: boolean) {
+  const reviewTone = reviewStatusPill(run.review ? "resolved" : "unreviewed");
   return (
     <div className="space-y-4 printable">
-      <Card title="Executive summary (printable)">
-        <div className={`text-center font-semibold text-xl p-3 rounded ${within ? "text-emerald-200 bg-emerald-950/20 border border-emerald-900/40" : "text-rose-200 bg-rose-950/20 border border-rose-900/40"}`}>
+      <div className="board-card">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold text-slate-600">Executive summary</h2>
+          <StatusPill tone={reviewTone} label={run.review ? "Signed-off" : "Pending review"} />
+        </div>
+        <div className={`text-center font-semibold text-xl p-4 rounded-xl ${within ? "text-emerald-800 bg-emerald-50 border border-emerald-200" : "text-rose-800 bg-rose-50 border border-rose-200"}`}>
           {summary.headline}
         </div>
-        <ul className="list-disc list-inside text-sm text-slate-300 space-y-1 mt-2">
+        <ul className="list-disc list-inside text-slate-600 space-y-1 mt-3">
           {summary.bullets.map((b, i) => <li key={i}>{b}</li>)}
         </ul>
         <div className="mt-3 text-xs text-slate-500">
-          Decision recommendation: <span className={`font-semibold ${summary.verdict === "approved" ? "text-emerald-300" : summary.verdict === "blocked" ? "text-rose-300" : "text-amber-300"}`}>{summary.verdict.toUpperCase()}</span>
-          {" · "}This is a recorded assessment and a decision aid, not a proof of safety.
+          Decision recommendation: <span className={`font-semibold ${summary.verdict === "approved" ? "text-emerald-700" : summary.verdict === "blocked" ? "text-rose-700" : "text-amber-700"}`}>{summary.verdict.toUpperCase()}</span>
+          {" · "}This is a recorded assessment and a decision aid, not proof of safety or authorization.
         </div>
-      </Card>
-      <Card title="Non-claims (what this does NOT prove)">
-        <ul className="list-disc list-inside text-xs text-slate-400 space-y-1">
+      </div>
+
+      <div className="board-card">
+        <h2 className="text-sm font-semibold text-slate-600 mb-3">Non-claims (what this does NOT prove)</h2>
+        <ul className="list-disc list-inside text-sm text-slate-500 space-y-1">
           {run.nonClaims.map((c, i) => <li key={i}>{c}</li>)}
         </ul>
-      </Card>
+      </div>
+
+      {!within && (
+        <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+          A red-line condition is open. Release is not approved unless the residual risk is explicitly accepted and documented by the authorized owner ({run.config.redLineOwner}).
+        </div>
+      )}
+      <div className="text-xs text-slate-500">Export: {exportOk ? "unlocked (sign-off recorded)" : "blocked until sign-off"}</div>
     </div>
   );
 }
@@ -531,24 +579,36 @@ function renderAudit(
   return (
     <div className="space-y-4">
       {renderSignoffForm(run, s)}
-      <Card title="Audit history (hash-chained)">
+      <div className="board-card">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold text-slate-600">Audit history (hash-chained)</h2>
+          <span className="text-xs text-slate-400">Chain integrity: {run.chainOk ? "intact" : "BROKEN"} · Review: {run.review?.verdict ?? "unreviewed"}</span>
+        </div>
         <ol className="space-y-2">
           {run.audit.map((a) => (
-            <li key={a.seq} className="border-l-2 border-slate-700 pl-3 py-1">
+            <li key={a.seq} className="border-l-2 border-slate-300 pl-3 py-1.5">
               <div className="flex items-center gap-2 text-xs">
-                <span className="font-mono text-slate-500">#{a.seq}</span>
+                <span className="mono-chip">#{a.seq}</span>
                 <Avatar name={a.actor} />
-                <span className="text-sky-300 font-medium">{a.action}</span>
+                <span className="text-sky-700 font-medium">{a.action}</span>
                 <span className="text-slate-500">{a.ts}</span>
-                <span className="font-mono text-slate-500">hash {a.hash.slice(0, 12)}…</span>
-                {a.payload && a.payload.verdict ? <Badge tone="ok">signed</Badge> : null}
+                <span className="mono-chip">hash {a.hash.slice(0, 10)}…</span>
+                {a.payload?.verdict ? <Badge tone="ok">signed</Badge> : null}
               </div>
-              <div className="text-xs text-slate-500 mt-0.5 pl-0.5">{JSON.stringify(a.payload)}</div>
+              <div className="text-xs text-slate-400 mt-0.5 pl-0.5">{JSON.stringify(a.payload)}</div>
             </li>
           ))}
         </ol>
-      </Card>
-      {selectedRisk && <RiskDetail risk={selectedRisk} run={run} />}
+      </div>
+      {selectedRisk && (
+        <div className="board-card">
+          <h3 className="text-sm font-semibold text-slate-600 mb-2">Evidence for {selectedRisk.threat}</h3>
+          <ul className="list-disc list-inside text-sm text-slate-600 space-y-0.5">
+            {selectedRisk.evidence.map((e, i) => <li key={i}>{e}</li>)}
+            {selectedRisk.decisionLog.map((d, i) => <li key={`d${i}`}>{d}</li>)}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }
@@ -564,95 +624,122 @@ function renderSignoffForm(
 ) {
   if (run.review) {
     return (
-      <Card title="Recorded sign-off">
-        <Row label="Verdict" value={run.review.verdict} tone={run.review.verdict === "approved" ? "ok" : "bad"} />
-        <Row label="Reviewer" value={run.review.by} tone="ok" />
-        <Row label="Role" value={run.review.role} tone="ok" />
-        <Qa q="Reason" a={run.review.reason} />
-        <Qa q="Uncertainty" a={run.review.uncertainty} />
-        <Qa q="Alternative explanation" a={run.review.alternative} />
-      </Card>
+      <div className="board-card">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold text-slate-600">Recorded sign-off</h2>
+          <span className="mono-chip">{run.review.by} ({run.review.role})</span>
+        </div>
+        <dl className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+          <div><dt className="text-slate-400">Verdict</dt><dd className={run.review.verdict === "approved" ? "text-emerald-700 font-semibold" : "text-rose-700 font-semibold"}>{run.review.verdict}</dd></div>
+          <div><dt className="text-slate-400">Signed at</dt><dd className="text-slate-700">{run.review.at}</dd></div>
+          <div className="sm:col-span-2"><dt className="text-slate-400">Reason</dt><dd className="text-slate-700">{run.review.reason}</dd></div>
+          <div><dt className="text-slate-400">Uncertainty</dt><dd className="text-slate-700">{run.review.uncertainty}</dd></div>
+          <div><dt className="text-slate-400">Alternative explanation</dt><dd className="text-slate-700">{run.review.alternative}</dd></div>
+        </dl>
+      </div>
     );
   }
   return (
-    <Card title="Sign-off (unlocks export)">
-      <p className="text-xs text-slate-400 mb-2">Record a verdict and reasoning. Export is blocked until this is completed.</p>
+    <div className="board-card">
+      <h2 className="text-sm font-semibold text-slate-600 mb-2">Sign-off — required to unlock export</h2>
+      <p className="text-xs text-slate-400 mb-3">Record a verdict and reasoning. Export is blocked (HTTP 409) until this is completed.</p>
       <div className="space-y-3 text-sm">
         <div>
-          <label className="block text-xs text-slate-400 mb-1">1) Verdict</label>
-          <select value={s.verdict} onChange={(e) => s.setVerdict(e.target.value as Verdict)} className="bg-slate-800 border border-slate-700 rounded p-2 w-full text-slate-100">
+          <label className="block text-xs text-slate-500 mb-1">1) Verdict</label>
+          <select value={s.verdict} onChange={(e) => s.setVerdict(e.target.value as Verdict)} className="border border-slate-200 rounded-lg p-2 w-full text-slate-800 bg-white">
             <option value="approved">approved — boundary was respected</option>
             <option value="blocked">blocked — boundary violated, do not ship</option>
             <option value="re-review">re-review — needs deeper investigation</option>
           </select>
         </div>
         <div>
-          <label className="block text-xs text-slate-400 mb-1">2) Your name</label>
-          <input value={s.reviewer} onChange={(e) => s.setReviewer(e.target.value)} placeholder="e.g. J. Rivera" className="bg-slate-800 border border-slate-700 rounded p-2 w-full text-slate-100" />
+          <label className="block text-xs text-slate-500 mb-1">2) Your name</label>
+          <input value={s.reviewer} onChange={(e) => s.setReviewer(e.target.value)} placeholder="e.g. J. Rivera" className="border border-slate-200 rounded-lg p-2 w-full text-slate-800 bg-white" />
         </div>
         <div>
-          <label className="block text-xs text-slate-400 mb-1">3) Reason</label>
-          <input value={s.reason} onChange={(e) => s.setReason(e.target.value)} placeholder="Why this verdict" className="bg-slate-800 border border-slate-700 rounded p-2 w-full text-slate-100" />
+          <label className="block text-xs text-slate-500 mb-1">3) Reason</label>
+          <input value={s.reason} onChange={(e) => s.setReason(e.target.value)} placeholder="Why this verdict" className="border border-slate-200 rounded-lg p-2 w-full text-slate-800 bg-white" />
         </div>
         <div className="grid sm:grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs text-slate-400 mb-1">4) Uncertainty</label>
-            <input value={s.uncertainty} onChange={(e) => s.setUncertainty(e.target.value)} placeholder="What are you unsure about?" className="bg-slate-800 border border-slate-700 rounded p-2 w-full text-slate-100" />
+            <label className="block text-xs text-slate-500 mb-1">4) Uncertainty</label>
+            <input value={s.uncertainty} onChange={(e) => s.setUncertainty(e.target.value)} placeholder="What are you unsure about?" className="border border-slate-200 rounded-lg p-2 w-full text-slate-800 bg-white" />
           </div>
           <div>
-            <label className="block text-xs text-slate-400 mb-1">5) Alternative explanation</label>
-            <input value={s.alternative} onChange={(e) => s.setAlternative(e.target.value)} placeholder="Another way to read this?" className="bg-slate-800 border border-slate-700 rounded p-2 w-full text-slate-100" />
+            <label className="block text-xs text-slate-500 mb-1">5) Alternative explanation</label>
+            <input value={s.alternative} onChange={(e) => s.setAlternative(e.target.value)} placeholder="Another way to read this?" className="border border-slate-200 rounded-lg p-2 w-full text-slate-800 bg-white" />
           </div>
         </div>
         <Button onClick={s.handleClassify} disabled={s.busy || !s.reviewer || !s.reason}>
           {s.busy ? "Recording…" : "Record sign-off (unlocks export)"}
         </Button>
       </div>
-    </Card>
+    </div>
   );
 }
 
 function renderBlockchain(run: WorkflowRun) {
   return (
     <div className="space-y-4">
-      <Card title="Optional technical evidence — Blockchain view">
-        <p className="text-xs text-slate-400">
-          SIMULATED FIXTURE blockchain view. No real chain is queried and no real transaction is submitted.
-          This supports provenance/tamper-evidence only; it does NOT prove a decision was safe or authorized.
+      <div className="board-card">
+        <h2 className="text-sm font-semibold text-slate-600">Optional technical evidence — Blockchain view</h2>
+        <p className="text-xs text-slate-400 mt-1">
+          SIMULATED FIXTURE blockchain view. No real chain is queried and no real transaction is submitted. This supports
+          provenance/tamper-evidence only; it does NOT prove a decision was safe or authorized.
         </p>
-        <div className="grid sm:grid-cols-2 gap-4 mt-2 text-xs">
-          <Qa q="Workflow run" a={run.runId} />
-          <Qa q="Simulated chain" a="Ethereum (testnet-equivalent, simulated)" />
-          <Qa q="Status" a="SIMULATED — not mined" />
-          <Qa q="Event root" a={run.audit.length ? run.audit[run.audit.length - 1].hash.slice(0, 32) + "…" : "—"} />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-3 text-xs">
+          <QaInline q="Workflow run" a={run.runId} />
+          <QaInline q="Simulated chain" a="Ethereum (testnet-equivalent, simulated)" />
+          <QaInline q="Status" a="SIMULATED — not mined" />
+          <QaInline q="Event root" a={run.audit.length ? run.audit[run.audit.length - 1].hash.slice(0, 32) + "…" : "—"} />
         </div>
-      </Card>
-      <Card title="Event log (hash-chained)">
+      </div>
+      <div className="board-card">
+        <h2 className="text-sm font-semibold text-slate-600 mb-3">Event log (hash-chained)</h2>
         <ol className="space-y-2">
           {run.audit.map((a) => (
-            <li key={a.seq} className="border-l-2 border-slate-700 pl-3 py-1">
+            <li key={a.seq} className="border-l-2 border-slate-300 pl-3 py-1">
               <div className="flex items-center gap-2 text-xs">
-                <span className="font-mono text-slate-500">#{a.seq}</span>
-                <span className="text-sky-300 font-medium">{a.action}</span>
+                <span className="mono-chip">#{a.seq}</span>
+                <span className="text-sky-700 font-medium">{a.action}</span>
                 <span className="text-slate-500">by {a.actor}</span>
-                <span className="font-mono text-slate-500">hash {a.hash.slice(0, 24)}…</span>
+                <span className="mono-chip">hash {a.hash.slice(0, 24)}…</span>
               </div>
               <div className="text-xs text-slate-500 mt-0.5 pl-0.5">{JSON.stringify(a.payload)}</div>
             </li>
           ))}
         </ol>
-      </Card>
+      </div>
     </div>
   );
+}
+
+function QaInline({ q, a }: { q: string; a: string | ReactNode }) {
+  return (
+    <div>
+      <dt className="text-slate-400">{q}</dt>
+      <dd className="text-slate-800 font-medium break-all">{a}</dd>
+    </div>
+  );
+}
+
+function Badge({ tone, children, className }: { tone: "ok" | "warn" | "bad" | "new" | "neutral"; children: ReactNode; className?: string }) {
+  const cls = PILL_CLASSES[tone] ?? PILL_CLASSES.neutral;
+  return <span className={`status-pill ${cls} ${className ?? ""}`}>{children}</span>;
+}
+
+function StatusPill({ tone, label }: { tone: "ok" | "warn" | "bad" | "new" | "neutral" | "blue" | "purple"; label: ReactNode }) {
+  const cls = PILL_CLASSES[tone] ?? PILL_CLASSES.neutral;
+  return <span className={`status-pill ${cls}`}>{label}</span>;
 }
 
 function PrintStyles() {
   return (
     <style>{`
       @media print {
-        header, .no-print, .border-b, [class*="bg-amber"] { display: none !important; }
-        body { background: #0f172a; color: #e2e8f0; }
-        .printable section { page-break-inside: avoid; }
+        .no-print, .board-header, .mono-chip { display: none !important; }
+        .printable { display: block !important; }
+        body { background: #fff; color: #1e293b; }
       }
     `}</style>
   );

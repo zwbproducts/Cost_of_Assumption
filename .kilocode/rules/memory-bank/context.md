@@ -34,11 +34,17 @@ The template is a clean Next.js 16 starter with TypeScript and Tailwind CSS 4. I
   - 22 new dashboard tests (scoring, controls, risk-map, audit lineage, red-line, blockchain-view, hash-chain) — all green
   - Minimal determinism fix to `store.ts` `buildPacket` (`generatedAt` derived from deterministic event ts instead of live `new Date()`) restoring packet-hash stability
 - Re-themed `/dashboard` to a Monday.com-style board:
-  - Group columns (New / In review / Approved) with item cards, colored status pills, owner avatars, tags
-  - Board header with view switcher (Board / Risk map / Heatmap / Executive summary / Audit / Blockchain evidence) + filter bar
+  - Light enterprise SaaS aesthetic: soft-gray page bg, white rounded-2xl cards, subtle shadows, rounded group headers with colored dot + pill counter
+  - Group columns (New / In review / Approved) with item cards, leading severity indicator bar, colored status pills, owner avatars
+  - Board header with view switcher (Board / Risk map / Heatmap / Executive summary / Audit / Blockchain evidence) + filter bar, sticky with blur backdrop
+  - Item cards: hover lift shadow, selection ring, focus ring, keyboard activation
+  - Monday-style status pills (ok/warn/bad/blue/purple/new) + monochromatic `mono-chip` hashes
   - Blockchain Evidence isolated as a secondary view, NOT on the primary workflow path
+  - `globals.css` uses plain CSS (no `@apply` on custom classes) for cross-build stability
+  - Added `RiskIcon` to `src/components/ui.tsx`; local `Badge`/`StatusPill` in page with extended tone set
   - Export gating preserved (409 until sign-off); hash-chained audit trail intact
   - `eslint.config.mjs` ignores built artifacts (`.next`, `.open-next`)
+- Visual polish applied (Monified): group headers with colored dot + pill count, leading severity border-left bars on item cards, metric-card hover lift, `mono-chip` artefact hashes
 
 ## Current Structure
 
@@ -111,3 +117,4 @@ export async function GET() {
 |------|---------|
 | Initial | Template created with base setup |
 | 2026-08-20 | Built Bridge Validation MVP: simulation-first safe vertical slice, safety guards, hash-chained store, dashboard, tests, design doc |
+| 2026-08-26 | Monified `/dashboard` + `globals.css`: light Monday.com aesthetic, group-header dots, severity bars, status pills, print styles; rewritten `page.tsx` with board/risk/heatmap/summary/audit/blockchain views, local Badge/StatusPill, RiskIcon added to ui.tsx; all green (typecheck, lint, build, 84 tests) |
