@@ -33,6 +33,12 @@ The template is a clean Next.js 16 starter with TypeScript and Tailwind CSS 4. I
   - Human sign-off gating export: classification required (unlocks export), 409 otherwise
   - 22 new dashboard tests (scoring, controls, risk-map, audit lineage, red-line, blockchain-view, hash-chain) — all green
   - Minimal determinism fix to `store.ts` `buildPacket` (`generatedAt` derived from deterministic event ts instead of live `new Date()`) restoring packet-hash stability
+- Re-themed `/dashboard` to a Monday.com-style board:
+  - Group columns (New / In review / Approved) with item cards, colored status pills, owner avatars, tags
+  - Board header with view switcher (Board / Risk map / Heatmap / Executive summary / Audit / Blockchain evidence) + filter bar
+  - Blockchain Evidence isolated as a secondary view, NOT on the primary workflow path
+  - Export gating preserved (409 until sign-off); hash-chained audit trail intact
+  - `eslint.config.mjs` ignores built artifacts (`.next`, `.open-next`)
 
 ## Current Structure
 
