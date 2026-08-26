@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useRef, useState, type ReactNode } from "react";
-import { Avatar, Badge, BoardTabs, Button, Card, Qa, Row, SeverityIcon, StatusPill } from "@/components/ui";
+import { Avatar, Badge, BoardTabs, Button, Card, EmptyState, Qa, Row, SeverityIcon, StatusPill } from "@/components/ui";
 import type { ClassificationRequest, DashboardState, RiskEntry, SlotObservation, Verdict, WorkflowRun } from "@/lib/bv/types";
 import { canExport, loadState, newRun, saveReview } from "@/lib/bv/client";
 import { summarize } from "@/lib/bv/workflow";
@@ -547,7 +547,6 @@ function renderAudit(
             </li>
           ))}
         </ol>
-        <div className="mt-3 text-xs text-slate-500">Chain integrity: {run.chainOk ? "intact" : "BROKEN"} · Review status: {run.review?.verdict ?? "unreviewed"}</div>
       </Card>
       {selectedRisk && <RiskDetail risk={selectedRisk} run={run} />}
     </div>
@@ -639,7 +638,7 @@ function renderBlockchain(run: WorkflowRun) {
                 <span className="font-mono text-slate-500">hash {a.hash.slice(0, 24)}…</span>
               </div>
               <div className="text-xs text-slate-500 mt-0.5 pl-0.5">{JSON.stringify(a.payload)}</div>
-            </ol>
+            </li>
           ))}
         </ol>
       </Card>

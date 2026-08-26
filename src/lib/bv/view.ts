@@ -21,7 +21,13 @@ export function reviewStatusPill(status: RiskEntry["reviewStatus"]): Severity {
   return "bad";
 }
 
-export function riskSeverityLabel(likelihood: number, impact: number): string {
+export function likelihoodWord(n: number): "low" | "medium" | "high" {
+  if (n <= 1) return "low";
+  if (n <= 2) return "medium";
+  return "high";
+}
+
+export function riskSeverityLabel(likelihood: number, impact: number): "low" | "medium" | "high" {
   const score = likelihood * impact;
   if (score >= 6) return "high";
   if (score >= 3) return "medium";
@@ -37,12 +43,6 @@ export function riskPositionConsistent(risk: RiskEntry): boolean {
     risk.likelihoodLabel === likelihoodWord(risk.likelihood) &&
     risk.impactLabel === likelihoodWord(risk.impact)
   );
-}
-
-function likelihoodWord(n: number): "low" | "medium" | "high" {
-  if (n === 1) return "low";
-  if (n === 2) return "medium";
-  return "high";
 }
 
 export function evidenceCoverage(run: WorkflowRun): number {

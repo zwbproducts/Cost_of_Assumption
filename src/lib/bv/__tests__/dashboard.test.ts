@@ -12,6 +12,17 @@ import {
 import { buildControls, buildRun, summarize, exportUnlocked, applyReview } from "../workflow";
 import { WORKFLOW_CONFIG, SIMULATED_SLOTS } from "../data";
 import type { Review, WorkflowRun } from "../bv/types";
+import {
+  evidenceCoverage,
+  heatScoreFormula,
+  isRiskRed,
+  likelihoodWord,
+  riskCellPosition,
+  riskPositionConsistent,
+  riskSeverityLabel,
+  reviewStatusPill,
+  severityToPillClass,
+} from "../view";
 
 describe("dashboard — totals & boundary", () => {
   it("computes compliance share from compliant slots", () => {
@@ -211,5 +222,134 @@ describe("dashboard — hash primitives", () => {
     const h = await sha256("hello");
     expect(h.length).toBe(64);
     expect(h).toBe("2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824");
+  });
+});
+
+describe("dashboard — view consistency (position, colour, score, data)", () => {
+  it("every risk's displayed matrix position matches (likelihood, impact)", async () => {
+    const run = await buildRun("run_pos_test");
+    for (const r of run.risks) {
+      const pos = riskCellPosition(r);
+      expect(pos.likelihood).toBe(r.likelihood);
+      expect(pos.impact).toBe(r.impact);
+      expect(pos.likelihood).toBeGreaterThanOrEqual(1);
+      expect(pos.likelihood).toBeLessThanOrEqual(3);
+      expect(pos.impact).toBeGreaterThanOrEqual(1);
+      expect(pos.impact).toBeLessThanOrEqual(3);
+      expect(riskPositionConsistent(r)).toBe(true);
+    }
+  });
+
+  it("severity colour class matches the risk's stated severity (not colour alone)", async () => {
+    const run = await buildRun("run_colour_test");
+    for (const r of run.risks) {
+      const pill = severityToPillClass(r.severity);
+      expect(pill).toBe(r.severity);
+      expect(["ok", "warn", "bad"]).toContain(pill);
+      if (r.severity === "bad") {
+        expect(isRiskRed(r)).toBe(true);
+        expect(pill).toBe("bad");
+      }
+    }
+  });
+
+  it("review-status colour class matches the risk's human review status", async () => {
+    const run = await buildRun("run_reviewcolor_test");
+    for (const r of run.risks) {
+      const pill = reviewStatusPill(r.reviewStatus);
+      expect(["ok", "warn", "bad"]).toContain(pill);
+      const expected = r.reviewStatus === "resolved" ? "ok" : r.reviewStatus === "in-review" ? "warn" : "bad";
+      expect(pill).toBe(expected);
+    }
+  });
+
+  it("heat-score is the documented weighted formula", async () => {
+    const run = await buildRun("run_heat_test");
+    const { compScore, maxScore, aggregate } = computeHeatScore();
+    const expected = WORKFLOW_CONFIG.maximizeWeight * maxScore + WORKFLOW_CONFIG.compositionWeight * compScore;
+    expect(run.heatScore.aggregate).toBeCloseTo(expected, 10);
+    expect(run.heatScore.composition).toBeCloseTo(compScore, 10);
+    expect(run.heatScore.maximize).toBeCloseTo(maxScore, 10);
+    expect(heatScoreFormula()).toContain("aggregate");
+  });
+
+  it("displayed likelihood/impact label words match the numeric tiers", async () => {
+    const run = await buildRun("run_label_test");
+    for (const r of run.risks) {
+      expect(r.likelihoodLabel).toBe(likelihoodWord(r.likelihood));
+      expect(r.impactLabel).toBe(likelihoodWord(r.impact));
+      // overall severity label must be consistent with the L*I product
+      expect(riskSeverityLabel(r.likelihood, r.impact)).toBe(
+        r.likelihood * r.impact >= 6 ? "high" : r.likelihood * r.impact >= 3 ? "medium" : "low",
+      );
+    }
+  });
+
+  it("evidence coverage is a percentage derived from controls (shown in heatmap)", async () => {
+    const run = await buildRun("run_cov_test");
+    const cov = evidenceCoverage(run);
+    expect(cov).toBeGreaterThanOrEqual(0);
+    expect(cov).toBeLessThanOrEqual(100);
+    const passed = run.controls.filter((c) => c.outcome === "passed").length;
+    const warns = run.controls.filter((c) => c.outcome === "warn").length;
+    const expected = Math.round(((passed + warns / 2) / run.controls.length) * 100);
+    expect(cov).toBe(expected);
+  });
+
+  it("heatmap risk counts and evidence coverage are consistent with underlying risks", async () => {
+    const run = await buildRun("run_heatmap_consistency_test");
+    const red = run.risks.filter((r) => r.severity === "bad").length;
+    const amber = run.risks.filter((r) => r.severity === "warn").length;
+    expect(red).toBeGreaterThanOrEqual(1);
+    expect(red + amber).toBe(run.risks.length);
+    expect(evidenceCoverage(run)).toBeLessThanOrEqual(100);
+    expect(run.heatScore.withinBoundary).toBe(false);
+    expect(isRiskRed(run.risks[0])).toBe(true);
+  });
+});
+
+describe("dashboard — sample data populates both graphics", () => {
+  it("run contains both a populated risk map and a populated heatmap after simulation", async () => {
+    const run = await buildRun("run_sample_test");
+    // risk map input: >=1 risk in the 3x3 matrix
+    expect(run.risks.length).toBeGreaterThanOrEqual(3);
+    for (const r of run.risks) {
+      const pos = riskCellPosition(r);
+      expect(pos.likelihood).toBeGreaterThanOrEqual(1);
+      expect(pos.impact).toBeGreaterThanOrEqual(1);
+    }
+    // heatmap input: 6 governance areas implied by controls + non-negotiable framing
+    expect(run.controls.length).toBe(3);
+    // evidence + decision log present for drill-down
+    const r0 = run.risks[0];
+    expect(r0.evidence.length).toBeGreaterThan(0);
+    expect(r0.reviewStatus).toBeDefined();
+  });
+
+  it("audit entries remain hash-chained when a sign-off is appended (audit view)", async () => {
+    const run = await buildRun("run_audit_test");
+    const before = run.audit.length;
+    const last = run.audit[before - 1].hash;
+    const review: Review = {
+      verdict: "blocked",
+      by: "A. Manager",
+      role: "compliance lead",
+      reason: "Red-line violated.",
+      uncertainty: "Observation source.",
+      alternative: "Config drift.",
+      at: new Date().toISOString(),
+    };
+    const reviewed = await applyReview(run, review);
+    expect(reviewed.audit.length).toBe(before + 1);
+    expect(reviewed.audit[before].prevHash).toBe(last);
+    expect(reviewed.review!.verdict).toBe("blocked");
+    // chain still verifiable end-to-end
+    let prev = genesis();
+    for (const e of reviewed.audit) {
+      const recomputed = await makeHash(prev, { seq: e.seq, ts: e.ts, actor: e.actor, action: e.action, payload: e.payload });
+      expect(recomputed).toBe(e.hash);
+      prev = e.hash;
+    }
+    expect(reviewed.chainOk).toBe(true);
   });
 });
