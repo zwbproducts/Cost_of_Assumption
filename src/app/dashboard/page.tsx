@@ -32,6 +32,62 @@ const PILL_CLASSES = {
   purple: "pill-purple",
 } as const;
 
+type Tone = keyof typeof PILL_CLASSES;
+
+const TONE_COLOR: Record<Tone, string> = {
+  ok: "rgb(20 166 209)",
+  warn: "rgb(180 85 4)",
+  bad: "rgb(220 20 60)",
+  neutral: "rgb(100 116 139)",
+  new: "rgb(79 70 229)",
+  blue: "rgb(30 58 138)",
+  purple: "rgb(86 20 153)",
+};
+
+function ringColor(score: number): string {
+  if (score >= 66) return TONE_COLOR.bad;
+  if (score >= 33) return TONE_COLOR.warn;
+  return TONE_COLOR.ok;
+}
+
+function HeatRing({ score, label, size = 58 }: { score: number; label: string; size?: number }) {
+  const pct = Math.max(0, Math.min(100, score));
+  const r = (size - 10) / 2;
+  const c = Math.PI * r;
+  const offset = c * (1 - pct / 100);
+  const col = ringColor(score);
+  const inside = ((pct * 1.6) | 0);
+  return (
+    <svg
+      viewBox={`0 0 ${size} ${size}`}
+      width={size}
+      height={size}
+      className="ring"
+      role="img"
+      aria-label={`${label}: ${pct}%`}
+      focusable="false"
+    >
+      <title>{`${label}: ${pct}%`}</title>
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgb(226 232 240)" strokeWidth={size / 22} />
+      <circle
+        cx={size / 2}
+        cy={size / 2}
+        r={r}
+        fill="none"
+        stroke={col}
+        strokeWidth={size / 22}
+        strokeDasharray={c}
+        strokeDashoffset={offset}
+        strokeLinecap="round"
+        transform={`rotate(-90 ${size / 2} ${size / 2})`}
+      />
+      <text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" className="fill-slate-700" fontSize={size / 4.2} fontWeight={700}>
+        {inside}
+      </text>
+    </svg>
+  );
+}
+
 export default function DashboardPage() {
   const [state, setState] = useState<DashboardState>(() => loadState());
   const run = state?.currentRun ?? null;
@@ -245,11 +301,13 @@ function renderBoard(
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-        <MetricCard label="Compliance share" value={`${totals.complianceShare.toFixed(1)}%`} sub={`required ≥ ${min}%`} tone={within ? "ok" : "bad"} />
-        <MetricCard label="Aggregate heat" value={`${Math.round(heat.aggregate * 100)}/100`} sub={`composition ${Math.round(heat.composition * 100)} · maximize ${Math.round(heat.maximize * 100)}`} tone={within ? "ok" : "warn"} />
-        <MetricCard label="Add-to-cart (total)" value={String(totals.totalAdd)} sub="simulated" tone="neutral" />
-        <MetricCard label="Open risks" value={String(risks.length)} sub={`${risks.filter((r) => r.severity === "bad").length} red`} tone={risks.some((r) => r.severity === "bad") ? "bad" : "warn"} />
+        <MetricRing label="Compliance share" score={Math.round(totals.complianceShare)} outOf={100} tone={within ? "ok" : "bad"} note={`need ≥ ${min}%`} />
+        <MetricRing label="Aggregate heat" score={Math.round(heat.aggregate * 100)} outOf={100} tone={within ? "ok" : "warn"} note={`comp ${Math.round(heat.composition * 100)} · max ${Math.round(heat.maximize * 100)}`} />
+        <MetricRing label="Add-to-cart (total)" score={totals.totalAdd} outOf={run.config.slots} tone="neutral" note="simulated" />
+        <MetricRing label="Open risks" score={risks.length} outOf={run.risks.length} tone={risks.some((r) => r.severity === "bad") ? "bad" : "warn"} note={`${risks.filter((r) => r.severity === "bad").length} red`} />
       </div>
+
+      <ColorKey />
 
       <div className="board-card">
         <div className="flex items-center justify-between mb-3">
@@ -267,8 +325,8 @@ function renderBoard(
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {columns.map((col) => (
-            <div key={col.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                  <div className="group-header mb-2">
+            <div key={col.id} className={`rounded-xl border border-slate-200 bg-slate-50 p-3 group-accent-${col.tone}`}>
+              <div className="group-header mb-2">
                     <span className="flex items-center gap-2">
                       <span className={`dot dot-${col.tone}`} />
                       <span className="ml-1 text-xs text-slate-500">{col.label}</span>
@@ -334,14 +392,40 @@ function renderBoard(
   );
 }
 
-function MetricCard({ label, value, sub, tone }: { label: string; value: string; sub: string; tone: "ok" | "bad" | "warn" | "neutral" }) {
-  const color = tone === "ok" ? "text-emerald-700" : tone === "bad" ? "text-rose-700" : tone === "warn" ? "text-amber-700" : "text-slate-600";
+function MetricRing({ label, score, outOf, tone, note }: { label: string; score: number; outOf: number; tone: Tone; note: string }) {
+  const pct = outOf ? Math.round((Math.min(score, outOf) / outOf) * 100) : score;
+  const color = TONE_COLOR[tone];
   return (
     <div className="metric-card">
-      <div className="text-xs text-slate-400">{label}</div>
-      <div className={`text-2xl font-bold ${color}`}>{value}</div>
-      <div className="text-xs text-slate-400 mt-0.5">{sub}</div>
+      <HeatRing score={pct} label={label} size={58} />
+      <div className={`mt-1 text-xs font-semibold`} style={{ color }}>{label}</div>
+      <div className="text-xs text-slate-400">{note}</div>
     </div>
+  );
+}
+
+function ColorKey() {
+  return (
+    <div className="board-card">
+      <h2 className="text-sm font-semibold text-slate-600 mb-2">At-a-glance — colour coding</h2>
+      <p className="text-xs text-slate-400 mb-2">Green = boundary respected · Amber = partial/attention · Red = boundary violated · Purple = new / pending human review.</p>
+      <div className="flex flex-wrap gap-2 text-xs">
+        <Key color="rgb(20 166 209)" label="Compliant / ok" />
+        <Key color="rgb(180 85 4)" label="At risk / warn" />
+        <Key color="rgb(220 20 60)" label="Violated / blocked" />
+        <Key color="rgb(79 70 225)" label="New / unreviewed" />
+        <Key color="rgb(100 116 139)" label="Neutral / informational" />
+      </div>
+    </div>
+  );
+}
+
+function Key({ color, label }: { color: string; label: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 border border-slate-200 bg-white">
+      <span className="block h-2.5 w-2.5 rounded-full" style={{ background: color, boxShadow: `0 0 6px ${color}` }} />
+      <span className="text-slate-600">{label}</span>
+    </span>
   );
 }
 

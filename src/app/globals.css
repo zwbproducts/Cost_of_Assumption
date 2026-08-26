@@ -75,8 +75,18 @@
   .item-card.warn { border-left-color: rgb(180 85 4); }
   .item-card.bad { border-left-color: rgb(180 20 40); }
   .item-card:hover { box-shadow: 0 6px 16px rgb(15 23 42 / 0.06); }
-  .item-card.selected { border-left-width: 4px; box-shadow: 0 0 0 3px rgb(14 165 233 / 0.15); }
-  .item-card:focus-within { outline: 2px solid rgb(14 165 233); outline-offset: 2px; }
+  .item-card.ok:hover { box-shadow: 0 6px 16px rgb(15 23 42 / 0.06), 0 0 0 6px rgb(20 166 209 / 0.18); }
+  .item-card.warn:hover { box-shadow: 0 6px 16px rgb(15 23 42 / 0.06), 0 0 0 6px rgb(202 113 24 / 0.22); }
+  .item-card.bad:hover { box-shadow: 0 6px 16px rgb(15 23 42 / 0.06), 0 0 0 6px rgb(220 20 60 / 0.22); }
+  .item-card.selected { border-left-width: 4px; box-shadow: 0 0 0 3px rgb(14 165 237 / 0.18); }
+  .item-card:focus-within { outline: 2px solid rgb(14 165 237); outline-offset: 2px; }
+  .item-card .risk-title { transition: filter 0.15s ease; }
+  .metric-card:hover .ring { transform: scale(1.08) rotate(2deg); }
+  .ring { display: inline-block; transition: transform 0.18s ease, filter 0.18s ease; }
+  .group-accent-ok { border-top: 3px solid rgb(20 166 209); }
+  .group-accent-warn { border-top: 3px solid rgb(180 85 4); }
+  .group-accent-bad { border-top: 3px solid rgb(180 20 40); }
+  .group-accent-new { border-top: 3px solid rgb(79 70 229); }
   .metric-card {
     border-radius: 1rem;
     background: #ffffff;
@@ -88,8 +98,8 @@
   .metric-card:hover { box-shadow: 0 4px 12px rgb(15 23 42 / 0.06); }
   .metric-card .icon { font-size: 1.25rem; margin-bottom: 0.25rem; }
   .mono-chip { display: inline-block; border-radius: 0.375rem; background: rgb(248 250 253); padding: 0.125rem 0.375rem; font-family: ui-monospace, monospace; font-size: 0.75rem; color: rgb(100 116 139); }
-  .board-header { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgb(226 232 240); background: rgba(255,255,255,0.8); backdrop-filter: blur(8px); padding: 0.625rem 1rem; }
   .board-tabpanel { display: flex; align-items: center; gap: 0.25rem; border-bottom: 1px solid rgb(226 232 240); }
+  .board-header { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgb(226 232 240); background: rgba(255,255,255,0.8); backdrop-filter: blur(8px); padding: 0.625rem 1rem; }
   .board-tab { padding: 0.5rem 1rem; font-size: 0.875rem; font-weight: 500; color: rgb(148 153 162); background: transparent; border-radius: 0.5rem 0.5rem 0 0; transition: color 0.15s ease; }
   .board-tab:hover { color: rgb(30 41 59); background: rgb(248 250 253); }
   .board-tab-active { border-bottom-width: 2px; border-color: rgb(14 165 233); color: rgb(2 121 255); background: #ffffff; }
