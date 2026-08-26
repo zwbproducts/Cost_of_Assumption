@@ -59,6 +59,9 @@ export interface RiskEntry {
   impactLabel: "low" | "medium" | "high";
   rationale: string;
   severity: Severity;
+  evidence: string[];
+  decisionLog: string[];
+  reviewStatus: "unreviewed" | "in-review" | "resolved";
 }
 
 export type Verdict = "approved" | "blocked" | "re-review";

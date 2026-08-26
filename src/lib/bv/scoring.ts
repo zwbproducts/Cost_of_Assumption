@@ -46,6 +46,9 @@ export const RISK_ENTRIES: RiskEntry[] = [
     impactLabel: "high",
     rationale: "Organic snack slot is already at 1.6% vs 12% required.",
     severity: "bad",
+    evidence: ["Slot 5 (Organic snack): 1.6% share", "Red-line config: shareOfHome >= 12", "Boundary check: FAILED"],
+    decisionLog: ["2026-08-26 Operator flagged drift", "2026-08-26 Review queued"],
+    reviewStatus: "unreviewed",
   },
   {
     id: "r2",
@@ -56,6 +59,9 @@ export const RISK_ENTRIES: RiskEntry[] = [
     impactLabel: "medium",
     rationale: "No sign-off gate is enforced by the pipeline today.",
     severity: "warn",
+    evidence: ["Pipeline config has no approval stage", "Last deploy timestamp logged"],
+    decisionLog: ["2026-08-25 SRE noted missing gate"],
+    reviewStatus: "in-review",
   },
   {
     id: "r3",
@@ -66,6 +72,9 @@ export const RISK_ENTRIES: RiskEntry[] = [
     impactLabel: "high",
     rationale: "Operator override path exists but is un-audited.",
     severity: "warn",
+    evidence: ["Override UI present in admin console", "No override-change logging"],
+    decisionLog: [],
+    reviewStatus: "unreviewed",
   },
   {
     id: "r4",
@@ -76,6 +85,9 @@ export const RISK_ENTRIES: RiskEntry[] = [
     impactLabel: "low",
     rationale: "Weights (0.6/0.4) still favour add-to-cart.",
     severity: "warn",
+    evidence: ["config.maximizeWeight = 0.6", "config.compositionWeight = 0.4"],
+    decisionLog: ["2026-08-26 Proposed weight re-balance (0.5/0.5)"],
+    reviewStatus: "in-review",
   },
   {
     id: "r5",
@@ -86,6 +98,9 @@ export const RISK_ENTRIES: RiskEntry[] = [
     impactLabel: "medium",
     rationale: "Upstream ingestion has no signature verification.",
     severity: "warn",
+    evidence: ["ingestion endpoint uses plain HTTP", "No HMAC on event source"],
+    decisionLog: [],
+    reviewStatus: "unreviewed",
   },
 ];
 

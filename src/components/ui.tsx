@@ -74,6 +74,25 @@ export function Avatar({ name, initials }: { name: string; initials?: string }) 
   );
 }
 
+export function SeverityIcon({ severity }: { severity: "ok" | "warn" | "bad" }) {
+  if (severity === "ok") {
+    return (
+      <svg aria-hidden="true" className="w-3 h-3 text-emerald-400" viewBox="0 0 24 24" fill="currentColor" aria-label="ok">
+        <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+      </svg>
+    );
+  }
+  const fill = severity === "warn" ? "currentColor" : "none";
+  const circle = severity === "warn" ? "text-amber-400" : "text-rose-400";
+  return (
+    <svg aria-hidden="true" className={`w-3 h-3 ${circle}`} viewBox="0 0 24 24" fill={fill} stroke="currentColor" strokeWidth="2" aria-label={severity === "warn" ? "warning" : "critical"}>
+      <circle cx="12" cy="12" r="10" />
+      <line x1="12" y1="12" x2="12" y2="12.01" />
+      {severity === "warn" ? <circle cx="12" cy="12" r="1" fill="currentColor" /> : null}
+    </svg>
+  );
+}
+
 function hashName(name: string): number {
   let h = 0;
   for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) | 0;
