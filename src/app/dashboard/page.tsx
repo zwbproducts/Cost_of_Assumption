@@ -1,35 +1,42 @@
 "use client";
 
-import { useCallback, useLayoutEffect, useRef, useState } from "react";
-import { Badge, Button, Card, Qa, Row, Tabs } from "@/components/ui";
-import type { ClassificationRequest, DashboardState, WorkflowRun } from "@/lib/bv/types";
+import { useCallback, useRef, useState, type ReactNode } from "react";
+import { Avatar, Badge, BoardTabs, Button, Card, EmptyState, LoadingState, Qa, Row, StatusPill } from "@/components/ui";
+import type { ClassificationRequest, DashboardState, RiskEntry, SlotObservation, Verdict, WorkflowRun } from "@/lib/bv/types";
 import { canExport, loadState, newRun, saveReview } from "@/lib/bv/client";
 import { summarize } from "@/lib/bv/workflow";
 
-const STEPS: { id: string; label: string; title: string }[] = [
-  { id: "define", label: "1. Define workflow", title: "Define workflow & red-line" },
-  { id: "boundary", label: "2. Boundary", title: "Declared boundary (red-line)" },
-  { id: "observe", label: "3. Observations", title: "Observations (slots)" },
-  { id: "compare", label: "4. Compare", title: "Declared-vs-observed" },
-  { id: "risk", label: "5. Risk map", title: "Risk map (3×3)" },
-  { id: "heat", label: "6. Heat score", title: "Heat score" },
-  { id: "summary", label: "7. Summary", title: "Executive summary" },
-  { id: "signoff", label: "8. Sign-off + audit", title: "Sign-off & audit history" },
+const VIEWS: { id: string; label: string }[] = [
+  { id: "board", label: "Board" },
+  { id: "risk", label: "Risk map" },
+  { id: "heat", label: "Heatmap" },
+  { id: "summary", label: "Executive summary" },
+  { id: "audit", label: "Audit history" },
+  { id: "blockchain", label: "Blockchain evidence" },
+];
+
+const GROUPS: { id: string; label: string; status: string }[] = [
+  { id: "new", label: "New", status: "new" },
+  { id: "review", label: "In review", status: "warn" },
+  { id: "approved", label: "Approved", status: "ok" },
 ];
 
 export default function DashboardPage() {
   const [state, setState] = useState<DashboardState>(() => loadState());
   const run = state?.currentRun ?? null;
   const history = state?.history ?? [];
+  const runRef = useRef(run);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [view, setView] = useState("board");
+  const [filter, setFilter] = useState("all");
   const [reviewer, setReviewer] = useState("");
-  const [verdict, setVerdict] = useState<"approved" | "blocked" | "re-review">("re-review");
+  const [verdict, setVerdict] = useState<Verdict>("re-review");
   const [reason, setReason] = useState("");
   const [uncertainty, setUncertainty] = useState("");
   const [alternative, setAlternative] = useState("");
-  const runRef = useRef(run);
+
+  useSync(runRef, run);
 
   const createRun = useCallback(async () => {
     setBusy(true);
@@ -43,7 +50,7 @@ export default function DashboardPage() {
     } finally {
       setBusy(false);
     }
-  }, [setState]);
+  }, []);
 
   const handleClassify = useCallback(async () => {
     const current = runRef.current;
@@ -53,13 +60,13 @@ export default function DashboardPage() {
       const req: ClassificationRequest = { verdict, by: reviewer, role: "brand-safety reviewer", reason, uncertainty, alternative };
       const updated = await saveReview(current, req);
       setState((prev) => ({ currentRun: updated, history: [updated, ...prev.history.filter((r) => r.runId !== updated.runId)] }));
-      setMsg("Classification recorded. Export is now unlocked.");
+      setMsg("Sign-off recorded. Export is now unlocked.");
     } catch (e) {
       setMsg(`Error: ${(e as Error).message}`);
     } finally {
       setBusy(false);
     }
-  }, [verdict, reviewer, reason, uncertainty, alternative, setState]);
+  }, [verdict, reviewer, reason, uncertainty, alternative]);
 
   const handleExport = useCallback(
     async (format: "json" | "csv") => {
@@ -67,11 +74,11 @@ export default function DashboardPage() {
       if (!current) return;
       setMsg(null);
       try {
-      const res = await fetch("/api/dashboard/export", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ run: current, format }),
-      });
+        const res = await fetch("/api/dashboard/export", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ run: current, format }),
+        });
         if (!res.ok) {
           const data = await res.json().catch(() => null);
           setMsg(`Export blocked (${res.status}): ${data?.error ?? "unknown"}`);
@@ -95,128 +102,179 @@ export default function DashboardPage() {
   );
 
   const handleReset = useCallback(() => {
-    const empty: DashboardState = { currentRun: null, history: [] };
     if (typeof window !== "undefined") window.localStorage.removeItem("bv-dashboard-state");
-    setState(empty);
+    setState({ currentRun: null, history: [] });
     setMsg("Local state reset. No real system was touched.");
-  }, [setState]);
+  }, []);
 
-  useLayoutEffect(() => {
-    runRef.current = run ?? null;
-  });
-
-  if (!state) {
+  if (!run) {
     return (
-      <main className="max-w-4xl mx-auto px-4 py-12 text-center text-slate-400">Loading…</main>
+      <main className="min-h-screen bg-slate-950 text-slate-100">
+        <div className="max-w-6xl mx-auto p-6 space-y-6">
+          <Banner />
+          <header className="space-y-1">
+            <h1 className="text-2xl sm:text-3xl font-bold leading-tight">Homepage Brand Choice — Cost of an Unchecked Assumption</h1>
+            <p className="text-slate-400 text-sm">
+              A Monday.com-style workflow board for AI governance. An AI recommendation workflow that maximizes add-to-cart
+              can satisfy its goal while quietly violating a stated compliance red-line. This board makes that drift visible, step by step.
+            </p>
+          </header>
+          <EmptyState
+            title="No run yet"
+            description="Click Run simulation to populate the board with simulated fixtures."
+            action={<Button onClick={createRun} disabled={busy}>{busy ? "Working…" : "Run deterministic simulation"}</Button>}
+          />
+        </div>
+      </main>
     );
   }
 
+  const summary = summarize(run);
+  const heat = run.heatScore;
+  const totals = run.observations.totals;
+  const min = run.config.complianceMinimum.value;
+  const within = heat.withinBoundary;
+  const exportOk = canExport(run);
+  const visibleRisks = filter === "all" ? run.risks : run.risks.filter((r) => r.severity === filter);
+  const slotRows = filter === "all" ? run.observations.slots : run.observations.slots.filter((s) => (filter === "violated" ? !s.withinBoundary : s.isCompliance));
+
   return (
-    <main className="max-w-4xl mx-auto px-4 py-8 space-y-6">
-      <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-center font-semibold tracking-wide text-amber-200">
-        SIMULATED DEMO — no real recommendation engine, no real customers, no real spend. All values are SIMULATED FIXTURES.
+    <main className="min-h-screen bg-slate-950 text-slate-100">
+      <Banner />
+      {/* Board header */}
+      <div className="border-b border-slate-800 bg-slate-900/30 px-4 py-3 flex items-center justify-between">
+        <div className="flex items-center gap-4 overflow-x-auto">
+          <h1 className="font-semibold text-lg whitespace-nowrap">Homepage Brand Choice Simulation</h1>
+          <span className="text-xs text-slate-500">• {run.runId}</span>
+          <BoardTabs tabs={VIEWS} value={view} onChange={setView} />
+        </div>
+        <div className="flex items-center gap-2">
+          <select value={filter} onChange={(e) => setFilter(e.target.value)} className="bg-slate-800 border border-slate-700 rounded px-2 py-1 text-sm text-slate-200">
+            <option value="all">All items</option>
+            <option value="bad">Red only</option>
+            <option value="warn">Amber only</option>
+            <option value="violated">Violated slots</option>
+            <option value="compliant">Compliant slots</option>
+          </select>
+          <Button onClick={() => handleExport("json")} disabled={!exportOk || busy}>Download JSON</Button>
+          <Button onClick={() => handleExport("csv")} disabled={!exportOk || busy}>Download CSV</Button>
+          <button onClick={handleReset} className="text-xs text-slate-400 hover:text-slate-200 border border-slate-700 rounded px-2 py-1">Reset</button>
+        </div>
       </div>
 
-      <header className="space-y-1">
-        <h1 className="text-2xl sm:text-3xl font-bold leading-tight">Homepage Brand Choice — Cost of an Unchecked Assumption</h1>
-        <p className="text-slate-400 text-sm">
-          An AI recommendation workflow that maximizes add-to-cart can satisfy its goal while quietly violating a red-line
-          compliance minimum that was stated but never bounded. This dashboard makes that drift visible, step by step.
-        </p>
-      </header>
+      <div className="max-w-6xl mx-auto p-4">
+        {msg && <div className={`text-sm mb-3 ${msg?.includes("Error") ? "text-rose-300" : "text-slate-300"}`}>{msg}</div>}
+        {!exportOk && (
+          <div className="mb-3 rounded-md border border-amber-500/30 bg-amber-950/20 px-3 py-2 text-xs text-amber-200">
+            Export is blocked until a human sign-off is recorded (Step 8 → Audit / Sign-off).
+          </div>
+        )}
 
-      <section className="flex flex-wrap gap-2 items-center">
-        <Button onClick={createRun} disabled={busy}>{busy ? "Working…" : "Run deterministic simulation"}</Button>
-        <Button onClick={() => handleExport("json")} disabled={!canExport(run) || busy}>Download JSON</Button>
-        <Button onClick={() => handleExport("csv")} disabled={!canExport(run) || busy}>Download CSV</Button>
-        <button onClick={handleReset} className="rounded-md border border-slate-600 hover:bg-slate-800 disabled:opacity-50 px-3 py-2 font-medium text-sm">Reset local data</button>
-      </section>
-
-      {msg && <div className="text-sm text-slate-300">{msg}</div>}
-
-      {!run && (
-        <div className="rounded-lg border border-slate-800 bg-slate-900/50 p-8 text-center text-slate-400">
-          No simulation yet. Click <span className="text-sky-300">Run deterministic simulation</span> to populate the board.
-        </div>
-      )}
-
-      {run && (
-        <>
-          <Card title="Board navigation" action={<select value={view} onChange={(e) => setView(e.target.value)} className="bg-slate-800 rounded p-2 text-sm">
-            <option value="board">8-step board</option>
-            <option value="history">Run history</option>
-            <option value="blockchain">Blockchain evidence</option>
-          </select>}>
-            <Tabs tabs={STEPS} value={view} onChange={(v) => setView(v)} />
-          </Card>
-
-          {view === "board" && renderBoard(run)}
-          {view === "history" && renderHistory(history)}
-          {view === "blockchain" && renderBlockchain(run)}
-        </>
-      )}
-
-      {run && renderReviewFooter(run, { reviewer, verdict, reason, uncertainty, alternative, setReviewer, setVerdict, setReason, setUncertainty, setAlternative, handleClassify, busy })}
+        {view === "board" && renderBoard(run, summary, heat, totals, min, within, filter, visibleRisks, slotRows, setView)}
+        {view === "risk" && renderRiskMap(filteredRisksForDisplay(run.risks, filter))}
+        {view === "heat" && renderHeatmap(run, heat, summary)}
+        {view === "summary" && renderSummary(run, summary, heat, within, exportOk)}
+        {view === "audit" && renderAudit(run, renderSignoffForm(run, { reviewer, setReviewer, verdict, setVerdict, reason, setReason, uncertainty, setUncertainty, alternative, setAlternative, handleClassify, busy, exportOk }))}
+        {view === "blockchain" && renderBlockchain(run)}
+      </div>
     </main>
   );
 }
 
-const renderBoard = (run: WorkflowRun) => {
-  const totals = run.observations.totals;
-  const min = run.config.complianceMinimum.value;
-  const heat = run.heatScore;
-  const within = heat.withinBoundary;
-  const compPct = totals.complianceShare.toFixed(1);
-  const riskCount = run.risks.length;
-  const highRisks = run.risks.filter((r) => r.severity === "bad").length;
-  const summary = summarize(run);
-  const exportOk = run.review !== null;
+function Banner() {
+  return (
+    <div className="border-b border-amber-500/40 bg-amber-500/10 px-4 py-2 text-center font-semibold tracking-wide text-amber-200 text-sm">
+      SIMULATED FIXTURE — no real recommendation engine, no real customers, no real spend. All values are SIMULATED FIXTURES.
+    </div>
+  );
+}
+
+function useSync(ref: { current: WorkflowRun | null }, value: WorkflowRun | null) {
+  ref.current = value;
+}
+
+function groupFor(risk: RiskEntry, run: WorkflowRun): "new" | "review" | "approved" {
+  const controls = run.controls.find((c) => c.id === "c1");
+  if (run.review && run.review.verdict === "approved") return "approved";
+  if (run.review && run.review.verdict === "blocked") return "review";
+  return risk.severity === "bad" ? "review" : "new";
+}
+
+function renderBoard(
+  run: WorkflowRun,
+  summary: { headline: string; bullets: string[]; verdict: Verdict },
+  heat: { aggregate: number; composition: number; maximize: number; withinBoundary: boolean },
+  totals: { totalAdd: number; complianceShare: number; maximizeMetric: number },
+  min: number,
+  within: boolean,
+  filter: string,
+  risks: RiskEntry[],
+  slots: SlotObservation[],
+  setView: (v: string) => void,
+) {
+  const filteredRisks = filter === "all" ? risks : risks.filter((r) => (filter === "violated" ? r.severity === "bad" : r.severity === filter));
+  const columns = GROUPS.map((g) => ({
+    ...g,
+    items: filteredRisks.filter((r) => groupFor(r, run) === g.id),
+  }));
 
   return (
-    <div className="space-y-4">
-      {/* 30-SECOND SUMMARY */}
-      <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-4 space-y-2 text-sm">
-        <h2 className="font-semibold text-sky-300">At a glance</h2>
-        <Qa q="What is the workflow deciding?" a="Which homepage slots to allocate to each product, to maximize add-to-cart." />
-        <Qa q="What must be true (red-line)?" a={run.config.complianceMinimum.description} />
-        <Qa q="What was the observed compliance share?" a={`${compPct}% (required ≥ ${min}%)`} />
-        <Qa q="What was the aggregate heat score?" a={`${(heat.aggregate * 100).toFixed(0)}/100 — ${within ? "boundary respected" : "BOUNDARY VIOLATED"}`} />
-        <Qa q="Why does it need human review?" a="Goals were met, but a stated compliance minimum was not enforced before execution." />
+    <div className="space-y-5">
+      {/* At-a-glance cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+        <MetricCard label="Compliance share" value={`${totals.complianceShare.toFixed(1)}%`} sub={`required ≥ ${min}%`} tone={within ? "ok" : "bad"} />
+        <MetricCard label="Aggregate heat" value={`${Math.round(heat.aggregate * 100)}/100`} sub={`composition ${Math.round(heat.composition * 100)}, maximize ${Math.round(heat.maximize * 100)}`} tone={within ? "ok" : "warn"} />
+        <MetricCard label="Add-to-cart (total)" value={String(totals.totalAdd)} sub="simulated" tone="neutral" />
+        <MetricCard label="Open risks" value={String(risks.length)} sub={`${risks.filter((r) => r.severity === "bad").length} red`} tone={risks.some((r) => r.severity === "bad") ? "bad" : "warn"} />
       </div>
 
-      {/* STEP 1 */}
-      <Card title="Step 1 — Define workflow & red-line">
-        <p className="text-slate-300">{run.config.goal}</p>
-        <div className="grid sm:grid-cols-2 gap-4 mt-2 text-xs text-slate-400">
-          <div>Maximize weight: {run.config.maximizeWeight}</div>
-          <div>Composition weight: {run.config.compositionWeight}</div>
-          <div>Slots assessed: {run.config.slots}</div>
-          <div>Red-line set by: {run.config.redLineOwner} at {run.config.redLineSetAt}</div>
+      <Card title="Compliance boundary (red-line)">
+        <div className="flex items-center gap-3">
+          <div className={`text-2xl font-bold ${within ? "text-emerald-300" : "text-rose-300"}`}>{within ? "PASS" : "FAIL"}</div>
+          <div className="text-slate-300">{run.config.complianceMinimum.description}</div>
+        </div>
+        {!within && <div className="mt-2 text-sm text-rose-300">The workflow maximized add-to-cart but let organic-snack share drop to {totals.complianceShare.toFixed(1)}%, below the {min}% red-line.</div>}
+      </Card>
+
+      {/* Monday-style group columns */}
+      <Card title="Risk board (grouped by status)">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          {columns.map((col) => (
+            <div key={col.id} className="border border-slate-800 rounded-lg p-2 bg-slate-900/30">
+              <div className="flex items-center gap-2 mb-2">
+                <StatusPill status={col.status} label={col.label} />
+                <span className="text-xs text-slate-500">{col.items.length} items</span>
+              </div>
+              <div className="space-y-2 min-h-[60px]">
+                {col.items.length === 0 ? (
+                  <div className="text-xs text-slate-500 py-4 text-center">No items</div>
+                ) : (
+                  col.items.map((r) => (
+                    <RiskItem key={r.id} risk={r} run={run} onDetail={() => setView("risk")} />
+                  ))
+                )}
+              </div>
+            </div>
+          ))}
         </div>
       </Card>
 
-      {/* STEP 2 */}
-      <Card title="Step 2 — Declared boundary (red-line)">
-        <p className="text-emerald-300 font-semibold">{run.config.complianceMinimum.description}</p>
-        <p className="text-xs text-slate-400 mt-1">This rule was stated but not encoded as a hard stop in the recommendation pipeline.</p>
-      </Card>
-
-      {/* STEP 3 */}
-      <Card title="Step 3 — Observations (slots)">
+      {/* Slot table */}
+      <Card title="Slot observations">
         <div className="overflow-x-auto">
           <table className="text-xs w-full">
             <thead>
               <tr className="text-slate-400">
-                <th className="text-left py-1">Slot</th>
+                <th className="text-left py-1">#</th>
                 <th className="text-left py-1">Category</th>
-                <th className="text-right py-1">Actual add-to-cart</th>
-                <th className="text-right py-1">Share of home</th>
-                <th className="text-center py-1">Compliance slot?</th>
-                <th className="text-center py-1">Within boundary?</th>
+                <th className="text-right py-1">Add-to-cart</th>
+                <th className="text-right py-1">Share</th>
+                <th className="text-center py-1">Compliant?</th>
+                <th className="text-center py-1">Boundary</th>
               </tr>
             </thead>
             <tbody>
-              {run.observations.slots.map((s) => (
+              {slots.map((s) => (
                 <tr key={s.slot} className="border-t border-slate-800">
                   <td className="py-1">{s.slot}</td>
                   <td className="py-1">{s.category}</td>
@@ -233,47 +291,143 @@ const renderBoard = (run: WorkflowRun) => {
         </div>
       </Card>
 
-      {/* STEP 4 */}
-      <Card title="Step 4 — Declared-vs-observed">
+      <Card title="Declared vs Observed">
         <ul className="text-sm text-slate-300 space-y-1">
-          <li>Intended: compliance share ≥ {min}% · Observed: <span className={within ? "text-emerald-300" : "text-rose-300"}>{compPct}%</span></li>
+          <li>Intended: compliance share ≥ {min}% · Observed: <span className={within ? "text-emerald-300" : "text-rose-300"}>{totals.complianceShare.toFixed(1)}%</span></li>
           <li>Only <span className="text-rose-300 font-semibold">{run.observations.slots.filter((s) => s.isCompliance).length} of {run.observations.slots.length}</span> slots allocated to compliant products.</li>
-          <li>Expected add-to-cart vs actual: the maximize objective was met ({totals.totalAdd} total).</li>
-          <li>Red-line check: <span className={within ? "text-emerald-300" : "text-rose-300"}>{within ? "PASS" : "FAIL"}</span></li>
+          <li>Boundary check: <span className={within ? "text-emerald-300" : "text-rose-300"}>{within ? "PASS" : "FAIL"}</span></li>
         </ul>
       </Card>
+    </div>
+  );
+}
 
-      {/* STEP 5 */}
-      <Card title="Step 5 — Risk map (3×3)">
-        <p className="text-xs text-slate-400 mb-2">Likelihood × Impact. Cells auto-populated by the risk model.</p>
-        {renderRiskGrid(run.risks)}
-        <p className="text-xs text-slate-400 mt-2">{highRisks} high-severity risks identified across {riskCount} total risks.</p>
-      </Card>
+function MetricCard({ label, value, sub, tone }: { label: string; value: string; sub: string; tone: "ok" | "bad" | "warn" | "neutral" }) {
+  const color = tone === "ok" ? "text-emerald-300" : tone === "bad" ? "text-rose-300" : tone === "warn" ? "text-amber-300" : "text-slate-300";
+  return (
+    <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-3">
+      <div className="text-xs text-slate-400">{label}</div>
+      <div className={`text-xl font-bold ${color}`}>{value}</div>
+      <div className="text-xs text-slate-500">{sub}</div>
+    </div>
+  );
+}
 
-      {/* STEP 6 */}
-      <Card title="Step 6 — Heat score">
-        <div className="grid sm:grid-cols-3 gap-4 text-center">
-          <div>
-            <div className="text-2xl font-bold text-sky-300">{Math.round(heat.composition * 100)}</div>
-            <div className="text-xs text-slate-400">Composition score (0–100)</div>
-          </div>
-          <div>
-            <div className="text-2xl font-bold text-amber-300">{Math.round(heat.maximize * 100)}</div>
-            <div className="text-xs text-slate-400">Maximize score (0–100)</div>
-          </div>
-          <div>
-            <div className="text-2xl font-bold text-rose-300">{Math.round(heat.aggregate * 100)}</div>
-            <div className="text-xs text-slate-400">Aggregate heat score</div>
-          </div>
+function RiskItem({ risk, run, onDetail }: { risk: RiskEntry; run: WorkflowRun; onDetail: () => void }) {
+  const owner = risk.id === "r1" ? run.config.redLineOwner : "Owner TBD";
+  return (
+    <div
+      className="rounded-md border border-slate-800 bg-slate-900/40 p-2.5 hover:border-sky-700/50 cursor-pointer transition-colors"
+      onClick={onDetail}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="font-medium text-sm text-slate-100">{risk.threat}</div>
+          <div className="text-xs text-slate-400 mt-0.5 line-clamp-2">{risk.rationale}</div>
         </div>
-        <div className="mt-2">
-          <Row label="Boundary respected?" value={within ? "YES" : "NO"} tone={within ? "ok" : "bad"} />
-          <Row label="Verdict (auto)" value={summary.verdict} tone={summary.verdict === "approved" ? "ok" : summary.verdict === "blocked" ? "bad" : "warn"} />
+        <Badge tone={risk.severity}>{risk.severity}</Badge>
+      </div>
+      <div className="flex items-center justify-between mt-1.5">
+          <div className="flex items-center gap-1.5 text-xs text-slate-400">
+            <span>L: {risk.likelihood} • I: {risk.impact}</span>
+            <StatusPill status={risk.severity} label={`${risk.likelihoodLabel}/${risk.impactLabel}`} />
+          </div>
+        <div className="flex items-center gap-1.5">
+          <Avatar name={owner} />
+          <span className="text-xs text-slate-500">{owner}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function filteredRisksForDisplay(risks: RiskEntry[], filter: string): RiskEntry[] {
+  return filter === "all" ? risks : risks.filter((r) => r.severity === filter);
+}
+
+function renderRiskMap(risks: RiskEntry[]) {
+  const cells = [];
+  for (let l = 3; l >= 1; l--) {
+    for (let i = 1; i <= 3; i++) cells.push({ x: i, y: l });
+  }
+  return (
+    <div className="grid grid-cols-3 gap-2 aspect-video">
+      {cells.map((c) => {
+        const match = risks.find((r) => r.likelihood === c.x && r.impact === c.y);
+        return (
+          <div key={`${c.x}-${c.y}`} className="border border-slate-800 rounded-lg p-2 bg-slate-900/40">
+            {match ? (
+              <div>
+                <div className="text-rose-300 font-medium text-xs line-clamp-2">{match.threat}</div>
+                <Badge tone={match.severity} className="mt-1">{`L${match.likelihood}•I${match.impact}`}</Badge>
+              </div>
+            ) : (
+              <span className="text-slate-500 text-xs">empty</span>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function renderHeatmap(run: WorkflowRun, heat: { aggregate: number; composition: number; maximize: number; withinBoundary: boolean }, summary: { headline: string; bullets: string[]; verdict: Verdict }) {
+  const areas = [
+    { name: "Authority & boundaries", score: 25, rag: "R", owner: run.config.redLineOwner, next: "Encode red-line as hard stop" },
+    { name: "Evidence quality", score: 92, rag: "G", owner: "Data lead", next: "None" },
+    { name: "Failure detection", score: 65, rag: "A", owner: "Platform", next: "Add drift alert" },
+    { name: "Recovery & rollback", score: 40, rag: "R", owner: "SRE", next: "Define rollback gate" },
+    { name: "Ownership", score: 55, rag: "A", owner: run.config.redLineOwner, next: "Assign compliance monitor" },
+    { name: "Safety & business alignment", score: 30, rag: "R", owner: "Brand", next: "Reconcile objective weights" },
+  ];
+  return (
+    <div className="space-y-3">
+      <Card title="Heatmap by non-negotiable area">
+        <div className="overflow-x-auto">
+          <table className="text-xs w-full">
+            <thead>
+              <tr className="text-slate-400">
+                <th className="text-left py-1">Area</th>
+                <th className="text-center py-1">RAG</th>
+                <th className="text-right py-1">Score</th>
+                <th className="text-left py-1">Owner</th>
+                <th className="text-left py-1">Next action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {areas.map((a) => {
+                const bg = a.rag === "G" ? "bg-emerald-900/20 text-emerald-300" : a.rag === "A" ? "bg-amber-900/20 text-amber-300" : "bg-rose-900/20 text-rose-300";
+                return (
+                  <tr key={a.name} className="border-t border-slate-800">
+                    <td className="py-1">{a.name}</td>
+                    <td className="text-center py-1"><span className={`px-1.5 py-0.5 rounded font-bold ${bg}`}>{a.rag}</span></td>
+                    <td className="text-right py-1">{a.score}</td>
+                    <td className="py-1">{a.owner}</td>
+                    <td className="py-1">{a.next}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       </Card>
+      <Card title="Heat score">
+        <div className="grid grid-cols-3 gap-4 text-center">
+          <div><div className="text-2xl font-bold text-sky-300">{Math.round(heat.composition * 100)}</div><div className="text-xs text-slate-400">Composition</div></div>
+          <div><div className="text-2xl font-bold text-amber-300">{Math.round(heat.maximize * 100)}</div><div className="text-xs text-slate-400">Maximize</div></div>
+          <div><div className="text-2xl font-bold text-rose-300">{Math.round(heat.aggregate * 100)}</div><div className="text-xs text-slate-400">Aggregate</div></div>
+        </div>
+        <Row label="Boundary respected?" value={heat.withinBoundary ? "YES" : "NO"} tone={heat.withinBoundary ? "ok" : "bad"} />
+        <p className="mt-2 text-xs text-slate-400">Score = 0.6·maximize + 0.4·composition, each normalized 0–1. This is a recorded assessment, not objective truth.</p>
+      </Card>
+    </div>
+  );
+}
 
-      {/* STEP 7 */}
-      <Card title="Step 7 — Executive summary">
+function renderSummary(run: WorkflowRun, summary: { headline: string; bullets: string[]; verdict: Verdict }, heat: { aggregate: number; withinBoundary: boolean }, within: boolean, exportOk: boolean) {
+  return (
+    <div className="space-y-4">
+      <Card title="Executive summary">
         <div className={`text-center font-semibold text-xl p-3 rounded ${within ? "text-emerald-200 bg-emerald-950/20 border border-emerald-900/40" : "text-rose-200 bg-rose-950/20 border border-rose-900/40"}`}>
           {summary.headline}
         </div>
@@ -281,151 +435,145 @@ const renderBoard = (run: WorkflowRun) => {
           {summary.bullets.map((b, i) => <li key={i}>{b}</li>)}
         </ul>
       </Card>
-
-      {/* Export status */}
-      <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-4">
-        <div className="flex items-center justify-between">
-          <h3 className="font-semibold text-sky-300">Export</h3>
-          <Badge tone={exportOk ? "ok" : "bad"}>{exportOk ? "unlocked" : "blocked — sign-off required"}</Badge>
+      <Card title="Decision recommendation">
+        <div className="space-y-2">
+          <div className="text-sm"><span className="text-slate-400">Verdict:</span> <span className={`font-bold ${summary.verdict === "approved" ? "text-emerald-300" : summary.verdict === "blocked" ? "text-rose-300" : "text-amber-300"}`}>{summary.verdict.toUpperCase()}</span></div>
+          {!within && (
+            <div className="text-xs text-rose-200 bg-rose-950/20 border border-rose-900/40 rounded p-2">
+              A red-line condition is open. Release is not approved unless the residual risk is explicitly
+              accepted and documented by the authorized owner (Compliance Officer).
+            </div>
+          )}
+          <Row label="Export unlocked?" value={exportOk ? "YES (sign-off recorded)" : "NO (sign-off required)"} tone={exportOk ? "ok" : "bad"} />
         </div>
-        {!exportOk && <p className="text-xs text-slate-400 mt-1">Record a human review in Step 8 to unlock export.</p>}
-      </div>
+      </Card>
+      <Card title="Non-claims (what this does NOT prove)">
+        <ul className="list-disc list-inside text-xs text-slate-400 space-y-1">
+          {run.nonClaims.map((c, i) => <li key={i}>{c}</li>)}
+        </ul>
+      </Card>
     </div>
   );
-};
+}
 
-const renderRiskGrid = (risks: WorkflowRun["risks"]) => {
-  const cells: { x: number; y: number }[] = [];
-  for (let l = 3; l >= 1; l--) {
-    for (let i = 1; i <= 3; i++) {
-      cells.push({ x: i, y: l });
-    }
-  }
-  return (
-    <div className="grid grid-cols-3 gap-1 aspect-video">
-      {cells.map((c) => {
-        const match = risks.find((r) => r.likelihood === c.x && r.impact === c.y);
-        return (
-          <div key={`${c.x}-${c.y}`} className="border border-slate-800 rounded p-2 text-xs">
-            {match ? (
-              <div>
-                <div className="text-rose-300 font-semibold">{match.threat}</div>
-                <Badge tone={match.severity}>{match.severity}</Badge>
-              </div>
-            ) : (
-              <span className="text-slate-500">empty</span>
-            )}
-          </div>
-        );
-      })}
-      <div className="text-xs text-slate-500 text-center mt-auto pt-1">Likelihood →</div>
-    </div>
-  );
-};
-
-const renderHistory = (history: WorkflowRun[]) => (
-  <div className="space-y-2">
-    {history.length === 0 ? (
-      <p className="text-slate-400">No prior runs in local storage.</p>
-    ) : (
-      history.map((r) => (
-        <div key={r.runId} className="border border-slate-800 rounded p-3 text-sm">
-          <span className="font-mono text-sky-300">{r.runId}</span> — aggregate {(r.heatScore.aggregate * 100).toFixed(0)} — review: {r.review?.verdict ?? "unreviewed"}
-        </div>
-      ))
-    )}
-  </div>
-);
-
-const renderBlockchain = (run: WorkflowRun) => {
-  const { packetHash } = { packetHash: "bv-" + run.runId.slice(-6) };
+function renderAudit(run: WorkflowRun, signoff: ReactNode) {
   return (
     <div className="space-y-4">
-      <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-4">
-        <h2 className="font-semibold text-sky-300">Blockchain evidence view</h2>
-        <p className="text-xs text-slate-400">
-          This is a SIMULATED FIXTURE blockchain view. No real chain is queried and no real transaction is submitted.
-        </p>
-      </div>
-      <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-4 space-y-2 text-sm">
-        <Qa q="Simulated block / slot" a={`${run.createdAt}`} />
-        <Qa q="Simulated tx id" a={packetHash} />
-        <Qa q="Event root" a={run.audit.length ? run.audit[run.audit.length - 1].hash.slice(0, 32) + "…" : "—"} />
-        <Qa q="Chain" a="Ethereum (testnet-equivalent, simulated)" />
-        <Qa q="Status" a="SIMULATED — not mined" />
-      </div>
-      <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-4">
-        <h2 className="font-semibold text-sky-300">Event log (hash-chained)</h2>
-        <ol className="space-y-1 text-xs">
+      {signoff}
+      <Card title="Audit history (hash-chained)">
+        <ol className="space-y-2">
           {run.audit.map((a) => (
-            <li key={a.seq} className="border-l-2 border-slate-700 pl-2">
-              <span className="font-mono text-slate-500">#{a.seq} </span>
-              <span className="text-sky-300">{a.action}</span> — <span className="text-slate-400">{a.actor}</span>
-              <div className="font-mono text-slate-500">hash: {a.hash.slice(0, 24)}…</div>
+            <li key={a.seq} className="border-l-2 border-slate-700 pl-3 py-1">
+              <div className="flex items-center gap-2 text-xs">
+                <span className="font-mono text-slate-500">#{a.seq}</span>
+                <Avatar name={a.actor} />
+                <span className="text-sky-300 font-medium">{a.action}</span>
+                <span className="text-slate-500">{a.ts}</span>
+                <span className="font-mono text-slate-500">hash {a.hash.slice(0, 12)}…</span>
+                {a.payload && a.payload.verdict ? <Badge tone="ok">signed</Badge> : null}
+              </div>
+              <div className="text-xs text-slate-400 mt-0.5 pl-9">{JSON.stringify(a.payload)}</div>
             </li>
           ))}
         </ol>
-      </div>
+        <div className="mt-3 text-xs text-slate-500">
+          Chain integrity: <span className={run.chainOk ? "text-emerald-400" : "text-rose-400"}>{run.chainOk ? "intact" : "BROKEN"}</span>
+        </div>
+      </Card>
     </div>
   );
-};
+}
 
-const renderReviewFooter = (
+function renderSignoffForm(
   run: WorkflowRun,
   s: {
-    reviewer: string; verdict: "approved" | "blocked" | "re-review"; reason: string; uncertainty: string; alternative: string;
-    setReviewer: (v: string) => void; setVerdict: (v: "approved" | "blocked" | "re-review") => void; setReason: (v: string) => void; setUncertainty: (v: string) => void; setAlternative: (v: string) => void;
-    handleClassify: () => Promise<void>; busy: boolean;
+    reviewer: string; setReviewer: (v: string) => void; verdict: Verdict; setVerdict: (v: Verdict) => void;
+    reason: string; setReason: (v: string) => void; uncertainty: string; setUncertainty: (v: string) => void;
+    alternative: string; setAlternative: (v: string) => void;
+    handleClassify: () => Promise<void>; busy: boolean; exportOk: boolean;
   },
-) => {
+) {
   if (run.review) {
     return (
-      <div className="rounded-lg border border-sky-800/50 bg-sky-950/20 p-4 space-y-2">
-        <h2 className="font-semibold">Recorded sign-off</h2>
+      <Card title="Recorded sign-off">
         <Row label="Verdict" value={run.review.verdict} tone={run.review.verdict === "approved" ? "ok" : "bad"} />
         <Row label="Reviewer" value={run.review.by} tone="ok" />
         <Row label="Role" value={run.review.role} tone="ok" />
         <Qa q="Reason" a={run.review.reason} />
         <Qa q="Uncertainty" a={run.review.uncertainty} />
         <Qa q="Alternative explanation" a={run.review.alternative} />
-      </div>
+      </Card>
     );
   }
   return (
-    <div className="rounded-lg border border-sky-800/50 bg-sky-950/20 p-4 space-y-3">
-      <h2 className="font-semibold">Step 8 — Human sign-off (unlocks export)</h2>
-      <p className="text-xs text-slate-400">Pick a verdict and explain it. Export is blocked until you record a classification.</p>
+    <Card title="Step 8 — Human sign-off (unlocks export)">
+      <p className="text-xs text-slate-400 mb-2">Record a verdict and reasoning. Export is blocked until this is completed.</p>
       <div className="space-y-3 text-sm">
         <div>
           <label className="block text-xs text-slate-400 mb-1">1) Verdict</label>
-          <select value={s.verdict} onChange={(e) => s.setVerdict(e.target.value as "approved" | "blocked" | "re-review")} className="bg-slate-800 rounded p-2 w-full">
+          <select value={s.verdict} onChange={(e) => s.setVerdict(e.target.value as Verdict)} className="bg-slate-800 border border-slate-700 rounded p-2 w-full text-slate-100">
             <option value="approved">approved — boundary was respected</option>
             <option value="blocked">blocked — boundary violated, do not ship</option>
             <option value="re-review">re-review — needs deeper investigation</option>
           </select>
         </div>
         <div>
-          <label className="block text-xs text-slate-400 mb-1">2) Your name / classifier identity</label>
-          <input value={s.reviewer} onChange={(e) => s.setReviewer(e.target.value)} placeholder="e.g. J. Rivera" className="bg-slate-800 rounded p-2 w-full" />
+          <label className="block text-xs text-slate-400 mb-1">2) Your name</label>
+          <input value={s.reviewer} onChange={(e) => s.setReviewer(e.target.value)} placeholder="e.g. J. Rivera" className="bg-slate-800 border border-slate-700 rounded p-2 w-full text-slate-100" />
         </div>
         <div>
           <label className="block text-xs text-slate-400 mb-1">3) Reason</label>
-          <input value={s.reason} onChange={(e) => s.setReason(e.target.value)} placeholder="Why this verdict" className="bg-slate-800 rounded p-2 w-full" />
+          <input value={s.reason} onChange={(e) => s.setReason(e.target.value)} placeholder="Why this verdict" className="bg-slate-800 border border-slate-700 rounded p-2 w-full text-slate-100" />
         </div>
         <div className="grid sm:grid-cols-2 gap-3">
           <div>
             <label className="block text-xs text-slate-400 mb-1">4) Uncertainty</label>
-            <input value={s.uncertainty} onChange={(e) => s.setUncertainty(e.target.value)} placeholder="What are you unsure about?" className="bg-slate-800 rounded p-2 w-full" />
+            <input value={s.uncertainty} onChange={(e) => s.setUncertainty(e.target.value)} placeholder="What are you unsure about?" className="bg-slate-800 border border-slate-700 rounded p-2 w-full text-slate-100" />
           </div>
           <div>
             <label className="block text-xs text-slate-400 mb-1">5) Alternative explanation</label>
-            <input value={s.alternative} onChange={(e) => s.setAlternative(e.target.value)} placeholder="Another way to read this?" className="bg-slate-800 rounded p-2 w-full" />
+            <input value={s.alternative} onChange={(e) => s.setAlternative(e.target.value)} placeholder="Another way to read this?" className="bg-slate-800 border border-slate-700 rounded p-2 w-full text-slate-100" />
           </div>
         </div>
         <Button onClick={s.handleClassify} disabled={s.busy || !s.reviewer || !s.reason}>
           {s.busy ? "Recording…" : "Record sign-off (unlocks export)"}
         </Button>
       </div>
+    </Card>
+  );
+}
+
+function renderBlockchain(run: WorkflowRun) {
+  return (
+    <div className="space-y-4">
+      <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-4">
+        <h2 className="font-semibold text-sky-300">Optional technical evidence</h2>
+        <p className="text-xs text-slate-400 mt-1">
+          SIMULATED FIXTURE blockchain view. No real chain is queried, no real transaction is submitted.
+          This supports provenance / tamper-evidence only; it does NOT prove a decision was safe or authorized.
+        </p>
+      </div>
+      <Card title="Chain summary">
+        <Qa q="Workflow run" a={run.runId} />
+        <Qa q="Simulated chain" a="Ethereum (testnet-equivalent, simulated)" />
+        <Qa q="Status" a="SIMULATED — not mined" />
+        <Qa q="Event root" a={run.audit.length ? run.audit[run.audit.length - 1].hash.slice(0, 32) + "…" : "—"} />
+      </Card>
+      <Card title="Event log (hash-chained)">
+        <ol className="space-y-2">
+          {run.audit.map((a) => (
+            <li key={a.seq} className="border-l-2 border-slate-700 pl-3 py-1">
+              <div className="flex items-center gap-2 text-xs">
+                <span className="font-mono text-slate-500">#{a.seq}</span>
+                <span className="text-sky-300 font-medium">{a.action}</span>
+                <span className="text-slate-500">by {a.actor}</span>
+                <span className="font-mono text-slate-500">hash {a.hash.slice(0, 24)}…</span>
+              </div>
+              <div className="text-xs text-slate-500 mt-0.5 pl-0.5">{JSON.stringify(a.payload)}</div>
+            </li>
+          ))}
+        </ol>
+      </Card>
     </div>
   );
-};
+}
