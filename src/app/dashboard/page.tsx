@@ -8,7 +8,7 @@ import { summarize } from "@/lib/bv/workflow";
 import { evidenceCoverage, heatScoreFormula, isRiskRed, riskCellPosition, riskPositionConsistent, reviewStatusPill } from "@/lib/bv/view";
 
 const VIEWS: { id: string; label: string; icon: string }[] = [
-  { id: "board", label: "Board", icon: "📋" },
+  { id: "board", label: "Audit trail — compliance", icon: "📊" },
   { id: "risk", label: "Risk map", icon: "🎯" },
   { id: "heatmap", label: "Heatmap", icon: "🔥" },
   { id: "summary", label: "Summary", icon: "📈" },
@@ -574,53 +574,79 @@ function RiskDetail({ risk, run }: { risk: RiskEntry; run: WorkflowRun }) {
 }
 
 function renderRiskMap(run: WorkflowRun, selectedRisk: RiskEntry | null, setSelectedRiskId: (id: string | null) => void) {
-  const grid = [];
+  const cells = [];
   for (let impact = 3; impact >= 1; impact--) {
-    for (let likelihood = 1; likelihood <= 3; likelihood++) grid.push({ likelihood, impact });
+    for (let likelihood = 1; likelihood <= 3; likelihood++) cells.push({ likelihood, impact });
   }
+  const riskScore = (r: RiskEntry) => Math.round((r.likelihood * r.impact) / 9 * 100);
   return (
     <div className="space-y-4">
       <div className="board-card">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold text-slate-600">Risk map — likelihood × impact (3×3)</h2>
-          <span className="text-xs text-slate-400">Decision aid, not proof. Click or arrow-key a marker to open evidence.</span>
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-sm font-semibold text-slate-700">Risk matrix</span>
+          <span className="text-xs text-slate-400" title="Decision aid, not proof">hover a cell, click a marker</span>
         </div>
-        <div className="grid grid-cols-3 gap-2 aspect-video">
-          {grid.map((c) => {
-            const match = run.risks.find((r) => r.likelihood === c.likelihood && r.impact === c.impact);
+        <div className="grid grid-cols-3 gap-2" style={{ aspectRatio: "1 / 1" }}>
+          {cells.map((c) => {
+            const match = run.risks.find((r) => r.likelihood === c.likelihood && r.impact === c.impact) ?? null;
+            const score = match ? riskScore(match) : 0;
+            const selected = selectedRisk?.id === match?.id;
             return (
-              <button
-                key={`${c.likelihood}-${c.impact}`}
-                type="button"
-                aria-label={`cell likelihood ${c.likelihood} impact ${c.impact}${match ? `: ${match.threat}` : ""}`}
-                onClick={() => match && setSelectedRiskId(match.id)}
-                className={`border rounded-xl p-2 text-xs text-left transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-sky-500 ${
-                  match ? "border-rose-200 bg-rose-50 hover:scale-105 hover:border-rose-300 hover:shadow-md cursor-pointer" : "border-slate-200 bg-slate-100/60 text-slate-400"
-                }`}
-              >
-                {match ? (
-                  <div>
-                    <div className="text-rose-700 font-medium line-clamp-2">{match.threat}</div>
-                    <div className="mt-1"><Badge tone={match.severity}>{`L${match.likelihood}•I${match.impact} ${match.severity}`}</Badge></div>
-                  </div>
-                ) : (
-                  "empty"
-                )}
-              </button>
+              <MatrixCell key={`${c.likelihood}-${c.impact}`} match={match} score={score} selected={selected} onSelect={() => match && setSelectedRiskId(match.id)} />
             );
           })}
         </div>
-        <div className="mt-4 grid grid-cols-3 gap-2 text-xs text-slate-400">
-          <div className="text-center">Low likelihood</div>
-          <div className="text-center">Medium likelihood</div>
-          <div className="text-center">High likelihood</div>
-          <div className="text-center">Low impact</div>
-          <div className="text-center">Medium impact</div>
-          <div className="text-center">High impact</div>
-        </div>
+        <AxisLegend />
       </div>
       {selectedRisk && <RiskDetail risk={selectedRisk} run={run} />}
-      {!selectedRisk && <p className="text-xs text-slate-400">Select a risk marker to inspect its evidence and decision history.</p>}
+      {!selectedRisk && <p className="text-xs text-slate-400">Click a marker to inspect its evidence and decision history.</p>}
+    </div>
+  );
+}
+
+function AxisLegend() {
+  return (
+    <div className="mt-3 text-[10px] text-slate-400">
+      <div className="grid grid-cols-5 gap-1 text-center">
+        <span>L</span><span>M</span><span>H</span><div></div><span className="col-span-2 text-center">Likelihood →</span>
+      </div>
+      <div className="mt-1 flex justify-between">
+        <span>↑ Impact (H → L)</span>
+        <span>Decision aid, not proof</span>
+      </div>
+    </div>
+  );
+}
+
+function MatrixCell({ match, score, selected, onSelect }: { match: RiskEntry | null; score: number; selected: boolean; onSelect: () => void }) {
+  const bg = !match
+    ? "bg-slate-100/60"
+    : match.severity === "bad"
+      ? "bg-rose-50 border-rose-200"
+      : match.severity === "warn"
+        ? "bg-amber-50 border-amber-200"
+        : "bg-emerald-50 border-emerald-200";
+  const glows: Record<string, string> = { ok: "rgb(20 166 209)", warn: "rgb(180 85 4)", bad: "rgb(220 20 60)" };
+  const glow = match ? glows[match.severity] ?? glows.ok : undefined;
+  return (
+    <div
+      className={`relative rounded-xl border-2 flex items-center justify-center transition-all duration-200 ${bg} ${selected ? "ring-2 ring-sky-400 scale-105" : "hover:scale-105 hover:shadow-md"} ${match ? "cursor-pointer" : "cursor-default"}`}
+      onClick={match ? onSelect : undefined}
+      role={match ? "button" : undefined}
+      tabIndex={match ? 0 : undefined}
+      aria-label={match ? `${match.threat} — L${match.likelihood} I${match.impact} ${match.severity}` : "empty cell"}
+      onKeyDown={match ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(); } } : undefined}
+      style={selected && match ? { boxShadow: `0 0 0 4px ${glow}` } : undefined}
+    >
+      {match ? (
+        <div className="flex flex-col items-center">
+          <HeatRing score={score} label={match.threat} size={46} />
+          <span className="mt-0.5 mono-chip text-[9px]">L{match.likelihood}</span>
+          <span className="mono-chip text-[9px]">I{match.impact}</span>
+        </div>
+      ) : (
+        <span className="text-slate-300">·</span>
+      )}
     </div>
   );
 }
