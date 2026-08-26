@@ -7,13 +7,13 @@ import { canExport, loadState, newRun, saveReview } from "@/lib/bv/client";
 import { summarize } from "@/lib/bv/workflow";
 import { evidenceCoverage, heatScoreFormula, isRiskRed, riskCellPosition, riskPositionConsistent, reviewStatusPill } from "@/lib/bv/view";
 
-const VIEWS: { id: string; label: string }[] = [
-  { id: "board", label: "Board" },
-  { id: "risk", label: "Risk map" },
-  { id: "heatmap", label: "Heatmap" },
-  { id: "summary", label: "Summary" },
-  { id: "audit", label: "Audit / sign-off" },
-  { id: "blockchain", label: "Blockchain evidence" },
+const VIEWS: { id: string; label: string; icon: string }[] = [
+  { id: "board", label: "Board", icon: "📋" },
+  { id: "risk", label: "Risk map", icon: "🎯" },
+  { id: "heatmap", label: "Heatmap", icon: "🔥" },
+  { id: "summary", label: "Summary", icon: "📈" },
+  { id: "audit", label: "Audit & sign-off", icon: "📜" },
+  { id: "blockchain", label: "Blockchain evidence", icon: "⛓" },
 ];
 
 const GROUPS: { id: string; label: string; tone: "new" | "warn" | "ok" }[] = [
@@ -84,6 +84,49 @@ function HeatRing({ score, label, size = 58 }: { score: number; label: string; s
       <text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" className="fill-slate-700" fontSize={size / 4.2} fontWeight={700}>
         {inside}
       </text>
+    </svg>
+  );
+}
+
+type ChartItem = { label: ReactNode; value: number; color: string; note?: string };
+
+function BarChart({ items, max, height = 16, gap = 8, barHeight = 10 }: { items: ChartItem[]; max?: number; height?: number; gap?: number; barHeight?: number }) {
+  const values = items.map((i) => i.value);
+  const ceiling = max ?? Math.max(1, ...values);
+  const yStep = barHeight + gap;
+  const totalH = Math.max(60, items.length * yStep + gap);
+  const labelW = 150;
+  const trackW = 220;
+  return (
+    <svg
+      viewBox={`0 0 ${labelW + trackW + 60} ${totalH}`}
+      role="img"
+      aria-label="bar chart"
+      className="w-full"
+      preserveAspectRatio="xMidYMid meet"
+    >
+      <title>Bar chart</title>
+      {items.map((it, i) => {
+        const w = (it.value / ceiling) * trackW;
+        const y = i * yStep + gap;
+        const txt = it.note ?? String(it.value);
+        const lab = typeof it.label === "string" ? it.label : "";
+        return (
+          <g key={i} transform={`translate(0 ${y})`}>
+            <title>{`${lab} — ${txt}`}</title>
+            <text x={labelW - 6} y={barHeight / 2 + 3} textAnchor="end" className="fill-slate-500" fontSize={10} fontWeight={500}>
+              {lab}
+            </text>
+            <rect x={labelW} y={0} width={trackW} height={barHeight} rx={barHeight / 2} className="fill-slate-100" />
+            <rect x={labelW} y={0} width={w} height={barHeight} rx={barHeight / 2} style={{ fill: it.color }} />
+            {it.note !== undefined && (
+              <text x={labelW + trackW + 6} y={barHeight / 2 + 3} className="fill-slate-600" fontSize={10} fontWeight={600}>
+                {typeof txt === "string" ? txt : ""}
+              </text>
+            )}
+          </g>
+        );
+      })}
     </svg>
   );
 }
@@ -229,10 +272,12 @@ export default function DashboardPage() {
               <button
                 key={v.id}
                 onClick={() => setView(v.id)}
+                aria-label={v.label}
+                title={v.label}
                 className={`board-tab ${view === v.id ? "board-tab-active" : ""}`}
                 aria-current={view === v.id ? "page" : undefined}
               >
-                {v.label}
+                <span aria-hidden="true">{v.icon}</span>
               </button>
             ))}
           </nav>
@@ -264,8 +309,8 @@ export default function DashboardPage() {
 
         {view === "board" && renderBoard(run, heat, totals, min, within, filter, visibleRisks, selectedRisk, setSelectedRiskId)}
         {view === "risk" && renderRiskMap(run, selectedRisk, setSelectedRiskId)}
-        {view === "heatmap" && renderHeatmap(run, heat, coverage, summary)}
-        {view === "summary" && renderSummary(run, summary, heat, within, exportOk)}
+        {view === "heatmap" && renderHeatmap(run, heat, coverage, summary, within, totals)}
+        {view === "summary" && renderSummary(run, summary, heat, within, totals, min, exportOk)}
         {view === "audit" && renderAudit(run, selectedRisk, { reviewer, setReviewer, verdict, setVerdict, reason, setReason, uncertainty, setUncertainty, alternative, setAlternative, handleClassify, busy, exportOk })}
         {view === "blockchain" && renderBlockchain(run)}
       </div>
@@ -580,7 +625,7 @@ function renderRiskMap(run: WorkflowRun, selectedRisk: RiskEntry | null, setSele
   );
 }
 
-function renderHeatmap(run: WorkflowRun, heat: { aggregate: number }, coverage: number, summary: { headline: string; bullets: string[]; verdict: Verdict }) {
+function renderHeatmap(run: WorkflowRun, heat: { aggregate: number; withinBoundary: boolean }, coverage: number, summary: { headline: string; bullets: string[]; verdict: Verdict }, within: boolean, totals: { totalAdd: number; complianceShare: number; maximizeMetric: number }) {
   const areas = [
     { name: "Authority & decision boundaries", score: 25, rag: "R", owner: run.config.redLineOwner, next: "Encode red-line as hard stop", evidence: 40, open: 1 },
     { name: "Evidence quality & provenance", score: 92, rag: "G", owner: "Data lead", next: "None", evidence: 95, open: 0 },
@@ -592,47 +637,37 @@ function renderHeatmap(run: WorkflowRun, heat: { aggregate: number }, coverage: 
   return (
     <div className="space-y-4">
       <div className="board-card">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold text-slate-600">Heatmap — governance areas</h2>
-          <span className="text-xs text-slate-400">Decision aid, not proof. Scores are recorded assessments.</span>
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-sm font-semibold text-slate-600">Governance heat</span>
+          <span className="text-xs text-slate-400">Decision aid · recorded assessment</span>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-slate-400 text-xs font-medium">
-                <th className="text-left py-2">Area</th>
-                <th className="text-center py-2">RAG</th>
-                <th className="text-right py-2">Score</th>
-                <th className="text-right py-2">Evidence</th>
-                <th className="text-left py-2">Open risks</th>
-                <th className="text-left py-2">Owner</th>
-                <th className="text-left py-2">Next action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {areas.map((a) => (
-                <tr key={a.name} className="border-t border-slate-200">
-                  <td className="py-2">{a.name}</td>
-                  <td className="text-center py-2"><StatusPill tone={a.rag.toLowerCase() as "ok" | "warn" | "bad"} label={a.rag} /></td>
-                  <td className="text-right py-2 font-medium">{a.score}</td>
-                  <td className="text-right py-2">{a.evidence}%</td>
-                  <td className="py-2">{a.open}</td>
-                  <td className="py-2">{a.owner}</td>
-                  <td className="py-2">{a.next}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <BarChart items={areas.map((a) => ({ label: a.name, value: a.score, color: a.rag === "G" ? TONE_COLOR.ok : a.rag === "A" ? TONE_COLOR.warn : TONE_COLOR.bad, note: `${a.score} · ${a.evidence}%` }))} />
+        <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
+          <Dot color={TONE_COLOR.ok} label="Green: healthy" />
+          <Dot color={TONE_COLOR.warn} label="Amber: review" />
+          <Dot color={TONE_COLOR.bad} label="Red: act" />
         </div>
-        <div className="mt-3 text-xs text-slate-500">
-          Overall evidence coverage: {coverage}% · Heat score: {Math.round(heat.aggregate * 100)}/100 · Formula: {heatScoreFormula()}
+      </div>
+
+      <div className="board-card">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-sm font-semibold text-slate-600">Evidence & signals</span>
+          <span className="text-xs text-slate-400">coverage {coverage}% · heat {Math.round(heat.aggregate * 100)}/100</span>
         </div>
+        <BarChart
+          max={100}
+          items={[
+            { label: "Evidence coverage", value: coverage, color: coverage >= 50 ? TONE_COLOR.ok : coverage >= 25 ? TONE_COLOR.warn : TONE_COLOR.bad, note: `${coverage}%` },
+            { label: "Heat (within bounds)", value: heat.withinBoundary ? 0 : 100, color: heat.withinBoundary ? TONE_COLOR.ok : TONE_COLOR.bad, note: heat.withinBoundary ? "ok" : "breach" },
+            { label: "Boundary check", value: totals.complianceShare, color: within ? TONE_COLOR.ok : TONE_COLOR.bad, note: `${totals.complianceShare.toFixed(1)}%` },
+          ]}
+        />
       </div>
     </div>
   );
 }
 
-function renderSummary(run: WorkflowRun, summary: { headline: string; bullets: string[]; verdict: Verdict }, heat: { aggregate: number; withinBoundary: boolean }, within: boolean, exportOk: boolean) {
+function renderSummary(run: WorkflowRun, summary: { headline: string; bullets: string[]; verdict: Verdict }, heat: { aggregate: number; withinBoundary: boolean }, within: boolean, totals: { totalAdd: number; complianceShare: number; maximizeMetric: number }, min: number, exportOk: boolean) {
   const reviewTone = reviewStatusPill(run.review ? "resolved" : "unreviewed");
   return (
     <div className="space-y-4 printable">
@@ -644,9 +679,16 @@ function renderSummary(run: WorkflowRun, summary: { headline: string; bullets: s
         <div className={`text-center font-semibold text-xl p-4 rounded-xl ${within ? "text-emerald-800 bg-emerald-50 border border-emerald-200" : "text-rose-800 bg-rose-50 border border-rose-200"}`}>
           {summary.headline}
         </div>
-        <ul className="list-disc list-inside text-slate-600 space-y-1 mt-3">
-          {summary.bullets.map((b, i) => <li key={i}>{b}</li>)}
-        </ul>
+        <div className="mt-3">
+          <BarChart
+            max={100}
+            items={[
+              { label: "Compliance share", value: totals.complianceShare, color: within ? TONE_COLOR.ok : TONE_COLOR.bad, note: `${totals.complianceShare.toFixed(1)}%` },
+              { label: "Red-line target", value: min, color: TONE_COLOR.neutral, note: `${min}%` },
+              { label: "Heat (within bounds)", value: heat.aggregate * 100, color: heat.withinBoundary ? TONE_COLOR.ok : TONE_COLOR.bad, note: `${Math.round(heat.aggregate * 100)}` },
+            ]}
+          />
+        </div>
         <div className="mt-3 text-xs text-slate-500">
           Decision recommendation: <span className={`font-semibold ${summary.verdict === "approved" ? "text-emerald-700" : summary.verdict === "blocked" ? "text-rose-700" : "text-amber-700"}`}>{summary.verdict.toUpperCase()}</span>
           {" · "}This is a recorded assessment and a decision aid, not proof of safety or authorization.
