@@ -174,6 +174,12 @@ export default function Page() {
         SIMULATED DEMO — no real brand, no real customers, no real spend. All values are SIMULATED FIXTURES.
       </div>
 
+      <div className="rounded-lg border border-slate-800 bg-slate-900/40 px-4 py-3 text-center text-sm">
+        <span className="text-slate-300">Also try the </span>
+        <a href="/dashboard" className="text-sky-300 underline font-medium">workflow governance dashboard →</a>
+        <span className="text-slate-500"> (separate scenario, same safety model).</span>
+      </div>
+
       {/* Title */}
       <header className="space-y-1">
         <h1 className="text-2xl sm:text-3xl font-bold leading-tight">

@@ -23,6 +23,16 @@ The template is a clean Next.js 16 starter with TypeScript and Tailwind CSS 4. I
   - Tests (bun test): spend cap, allowlists, duplicate execution, missing approval, kill switch, RPC failure, simulation safety, hash-chain integrity
   - Design doc at docs/DESIGN.md (threat model, data model, mermaid, scenario, assumptions, plan)
   - Live execution path gated behind guards + explicit approval + injected provider; no real signing backend wired yet (returns LIVE_NOT_CONFIGURED)
+- Added Business-Workflow Governance Dashboard (option a: reusable engine foundation)
+  - New primary route `/dashboard` + API routes `/api/dashboard/{simulate,classify,export,state,reset}`
+  - 8-step Monday.com-style board: define → boundary → observations → compare → risk map → heat score → summary → sign-off + audit
+  - Scenario: AI homepage product recommendation maximizing add-to-cart vs compliance red-line (≥12% organic snack slots)
+  - Filterable board with category/slot drill-down, heat-map scoring, 3×3 risk grid
+  - Blockchain Evidence view (secondary) isolated from primary workflow; synthetic hashes only
+  - Hash-chained audit trail (SHA-256, genesis-anchored, tamper-evident recompute)
+  - Human sign-off gating export: classification required (unlocks export), 409 otherwise
+  - 22 new dashboard tests (scoring, controls, risk-map, audit lineage, red-line, blockchain-view, hash-chain) — all green
+  - Minimal determinism fix to `store.ts` `buildPacket` (`generatedAt` derived from deterministic event ts instead of live `new Date()`) restoring packet-hash stability
 
 ## Current Structure
 

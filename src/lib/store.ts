@@ -271,10 +271,12 @@ export function createStore(opts: StoreOptions = {}): Store {
         chainVerification,
         negativeControls: run.negativeControls,
         claim: CLAIM,
-        nonClaims: [...NON_CLAIMS, ...NON_CLAIMS_EXTRA],
-        verification,
-        generatedAt: new Date().toISOString(),
-        packetHash: "0x" as Hex,
+         nonClaims: [...NON_CLAIMS, ...NON_CLAIMS_EXTRA],
+         verification,
+         generatedAt: run.events.length
+           ? run.events[run.events.length - 1].ts
+           : run.config.createdAt,
+         packetHash: "0x" as Hex,
       };
       packet.packetHash = ("0x" +
         hashEvent(
