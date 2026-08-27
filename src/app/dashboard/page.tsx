@@ -7,14 +7,27 @@ import { canExport, loadState, newRun, saveReview } from "@/lib/bv/client";
 import { summarize } from "@/lib/bv/workflow";
 import { evidenceCoverage, heatScoreFormula, isRiskRed, riskCellPosition, riskPositionConsistent, reviewStatusPill } from "@/lib/bv/view";
 
-const VIEWS: { id: string; label: string; icon: string }[] = [
-  { id: "board", label: "Audit trail — compliance", icon: "📊" },
-  { id: "risk", label: "Risk map", icon: "🎯" },
-  { id: "heatmap", label: "Heatmap", icon: "🔥" },
-  { id: "summary", label: "Summary", icon: "📈" },
-  { id: "audit", label: "Audit & sign-off", icon: "📜" },
-  { id: "blockchain", label: "Blockchain evidence", icon: "⛓" },
+const VIEWS: { id: string; label: string; short: string; icon: string }[] = [
+  { id: "board", icon: "📊", short: "Audit", label: "Audit trail & compliance" },
+  { id: "risk", icon: "🎯", short: "Risks", label: "Risk map" },
+  { id: "heatmap", icon: "🔥", short: "Heat", label: "Heatmap" },
+  { id: "summary", icon: "📈", short: "Summary", label: "Executive summary" },
+  { id: "audit", icon: "📜", short: "Sign-off", label: "Audit & sign-off" },
+  { id: "blockchain", icon: "⛓", short: "Chain", label: "Blockchain evidence" },
 ];
+
+function viewFromUrl(): string {
+  if (typeof window === "undefined") return "board";
+  const v = new URLSearchParams(window.location.search).get("view");
+  return VIEWS.some((x) => x.id === v) ? v! : "board";
+}
+
+function setViewInUrl(v: string) {
+  if (typeof window === "undefined") return;
+  const u = new URL(window.location.href);
+  u.searchParams.set("view", v);
+  window.history.replaceState(null, "", u);
+}
 
 const PILL_CLASSES = {
   ok: "pill-ok",
@@ -51,7 +64,8 @@ export default function DashboardPage() {
   const run = state?.currentRun ?? null;
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
-  const [view, setView] = useState("board");
+  const [view, setViewRaw] = useState<string>(viewFromUrl);
+  const switchView = (v: string) => { setViewRaw(v); setViewInUrl(v); };
   const [reviewer, setReviewer] = useState("");
   const [verdict, setVerdict] = useState<Verdict>("re-review");
   const [reason, setReason] = useState("");
@@ -161,8 +175,9 @@ export default function DashboardPage() {
           <span className="mono-chip">{run.runId}</span>
           <nav className="board-tabpanel">
             {VIEWS.map((v) => (
-              <button key={v.id} onClick={() => setView(v.id)} aria-label={v.label} title={v.label} aria-current={view === v.id ? "page" : undefined} className={`board-tab ${view === v.id ? "board-tab-active" : ""}`}>
+              <button key={v.id} onClick={() => switchView(v.id)} aria-label={v.label} title={v.label} aria-current={view === v.id ? "page" : undefined} className={`board-tab ${view === v.id ? "board-tab-active" : ""}`}>
                 <span aria-hidden="true">{v.icon}</span>
+                <span className="ml-1 text-xs font-medium">{v.short}</span>
               </button>
             ))}
           </nav>
