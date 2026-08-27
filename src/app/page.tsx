@@ -7,12 +7,12 @@ const ROLES: {
   action: string;
   tone: "teal" | "amber" | "purple" | "sky" | "rose" | "indigo";
 }[] = [
-  { name: "Auditor", view: "board", icon: "📊", action: "Review the compliance audit trail", tone: "teal" },
-  { name: "Manager", view: "risk", icon: "🎯", action: "Inspect and triage risks", tone: "amber" },
-  { name: "Strategist", view: "heatmap", icon: "🔥", action: "Scan organisational heat", tone: "purple" },
-  { name: "Executive", view: "summary", icon: "📈", action: "Read the verdict", tone: "sky" },
-  { name: "Security Director", view: "audit", icon: "📜", action: "Approve sign-off & export", tone: "rose" },
-  { name: "Engineer", view: "blockchain", icon: "⛓", action: "Inspect the evidence chain", tone: "indigo" },
+  { name: "Auditor", view: "board", icon: "📊", action: "Review audit trail", tone: "teal" },
+  { name: "Manager", view: "risk", icon: "🎯", action: "Triage risks", tone: "amber" },
+  { name: "Strategist", view: "heatmap", icon: "🔥", action: "Scan heat", tone: "purple" },
+  { name: "Executive", view: "summary", icon: "📈", action: "Read verdict", tone: "sky" },
+  { name: "Security Director", view: "audit", icon: "📜", action: "Verify chain + sign-off", tone: "rose" },
+  { name: "Engineer", view: "blockchain", icon: "⛓", action: "Inspect chain", tone: "indigo" },
 ];
 
 const TONE_CLASSES = {

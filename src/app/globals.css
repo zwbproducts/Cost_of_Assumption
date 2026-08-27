@@ -103,6 +103,8 @@
   .board-tab { padding: 0.5rem 1rem; font-size: 0.875rem; font-weight: 500; color: rgb(148 153 162); background: transparent; border-radius: 0.5rem 0.5rem 0 0; transition: color 0.15s ease; }
   .board-tab:hover { color: rgb(30 41 59); background: rgb(248 250 253); }
   .board-tab-active { border-bottom-width: 2px; border-color: rgb(14 165 233); color: rgb(2 121 255); background: #ffffff; }
+  .chain-node { opacity: 0.92; transition: filter 0.15s ease, opacity 0.15s ease; }
+  .chain-node:hover { opacity: 1; filter: brightness(1.06); }
 }
 
 @layer utilities {

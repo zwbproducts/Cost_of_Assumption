@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useRef, useState, type ReactNode } from "react";
-import { Avatar, Button, SeverityIcon } from "@/components/ui";
-import type { ClassificationRequest, DashboardState, RiskEntry, Verdict, WorkflowRun } from "@/lib/bv/types";
+import { Button, SeverityIcon } from "@/components/ui";
+import type { AuditEntry, ClassificationRequest, DashboardState, RiskEntry, Verdict, WorkflowRun } from "@/lib/bv/types";
 import { canExport, loadState, newRun, saveReview } from "@/lib/bv/client";
 import { summarize } from "@/lib/bv/workflow";
 import { evidenceCoverage, heatScoreFormula, isRiskRed, riskCellPosition, riskPositionConsistent, reviewStatusPill } from "@/lib/bv/view";
@@ -530,21 +530,10 @@ function AuditView({ run, selectedRisk, signoff }: { run: WorkflowRun; selectedR
       <SignoffForm run={run} s={signoff} />
       <div className="board-card">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-sm font-semibold text-slate-700">Audit history</span>
+          <span className="text-sm font-semibold text-slate-700">Audit trail</span>
           <span className="text-xs text-slate-400">chain: {run.chainOk ? "intact" : "BROKEN"} - review: {run.review?.verdict ?? "unreviewed"}</span>
         </div>
-        <ol className="space-y-1">
-          {run.audit.map((a) => (
-            <li key={a.seq} className="border-l-2 border-slate-300 pl-2 py-1 flex items-center gap-2 text-[11px]">
-              <span className="mono-chip">#{a.seq}</span>
-              <Avatar name={a.actor} />
-              <span className="text-sky-700 font-medium">{a.action}</span>
-              <span className="text-slate-500">{a.ts}</span>
-              <span className="mono-chip">hash {a.hash.slice(0, 10)}…</span>
-              {a.payload?.verdict ? <Badge tone="ok">signed</Badge> : null}
-            </li>
-          ))}
-        </ol>
+        <ChainGraph entries={run.audit} />
       </div>
       {selectedRisk && (
         <div className="board-card">
@@ -615,17 +604,45 @@ function BlockchainView({ run }: { run: WorkflowRun }) {
       </div>
       <div className="board-card">
         <span className="text-sm font-semibold text-slate-700 block mb-2">Event log</span>
-        <ol className="space-y-1">
-          {run.audit.map((a) => (
-            <li key={a.seq} className="border-l-2 border-slate-300 pl-2 py-1 flex items-center gap-2 text-[11px]">
-              <span className="mono-chip">#{a.seq}</span>
-              <span className="text-sky-700 font-medium">{a.action}</span>
-              <span className="text-slate-500">by {a.actor}</span>
-              <span className="mono-chip">hash {a.hash.slice(0, 24)}…</span>
-            </li>
-          ))}
-        </ol>
+        <ChainGraph entries={run.audit} />
       </div>
+    </div>
+  );
+}
+
+function ChainGraph({ entries }: { entries: AuditEntry[] }) {
+  const n = entries.length;
+  if (!n) return <span className="text-xs text-slate-400">No audit entries.</span>;
+  const bw = 116;
+  const bh = 46;
+  const gap = 10;
+  const pad = 14;
+  const totalW = pad * 2 + n * bw + (n - 1) * gap;
+  return (
+    <div className="overflow-x-auto">
+        <svg viewBox={`0 0 ${totalW} 80`} role="img" aria-label="Audit chain" className="w-full h-auto">
+        <title>Audit chain</title>
+        {entries.map((a, i) => {
+          const x = pad + i * (bw + gap);
+          const filled = !!a.payload?.verdict;
+          const col = filled ? TONE_COLOR.ok : a.action.includes("sign") ? TONE_COLOR.bad : a.action.includes("sim") ? TONE_COLOR.blue : TONE_COLOR.neutral;
+          return (
+            <g key={a.seq} transform={`translate(${x} 0)`} className="chain-node">
+              <rect x={0} y={8} width={bw} height={bh} rx={8} fill="#ffffff" stroke={col} strokeWidth={2} />
+              <rect x={0} y={8} width={bw} height={15} rx="8 8 0 0" fill={col} opacity={0.12} />
+              <text x={10} y={23} className="fill-slate-700" fontSize={11} fontWeight={600}>#{a.seq}</text>
+              <text x={10} y={38} className="fill-slate-500" fontSize={10}>{a.action}</text>
+              {i < n - 1 && (
+                <>
+                  <line x1={bw} y1={30} x2={bw + gap} y2={30} stroke={col} strokeWidth={2} strokeLinecap="round" />
+                  <polygon points={`${bw + gap - 1} 27 ${bw + gap + 3} 30 ${bw + gap - 1} 33`} fill={col} />
+                </>
+              )}
+              <title>{`Event #${a.seq} - ${a.action} by ${a.actor} at ${a.ts} - hash ${a.hash.slice(0, 24)}`}</title>
+            </g>
+          );
+        })}
+      </svg>
     </div>
   );
 }

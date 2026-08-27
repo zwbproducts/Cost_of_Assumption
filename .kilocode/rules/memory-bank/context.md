@@ -8,6 +8,10 @@ The template is a clean Next.js 16 starter with TypeScript and Tailwind CSS 4. I
 
 ## Recently Completed
 
+- [x] **Simplified persona routing + graphical chain evidence**
+  - Splash role cards now use short, single-action labels (Auditor→"Review audit trail", Manager→"Triage risks", Strategist→"Scan heat", Executive→"Read verdict", Security Director→"Verify chain + sign-off", Engineer→"Inspect chain") with icon + colored status dot for clean, understandable entry.
+  - Added a reusable graphical `ChainGraph` SVG component (horizontal blocks + arrows, color per action, hover tooltips with seq/actor/ts/hash) rendering the tamper-evident audit chain as a graphic — used in BOTH the Audit/sign-off view (so Security Directors see their blockchain evidence as a simple chain at a glance) and the Blockchain Evidence view.
+  - Fixed `chain-node` hover CSS in `globals.css`; removed now-unused `Avatar` import from dashboard page; resolved `TONE_COLOR` key errors (`rose`/`indigo` → valid `Tone` keys).
 - [x] Base Next.js 16 setup with App Router
 - [x] TypeScript configuration with strict mode
 - [x] Tailwind CSS 4 integration
