@@ -1,66 +1,32 @@
 import Link from "next/link";
 
-const ROLES: {
-  name: string;
-  view: string;
-  icon: string;
-  action: string;
-  tone: "teal" | "amber" | "purple" | "sky" | "rose" | "indigo";
-}[] = [
-  { name: "Auditor", view: "board", icon: "📊", action: "Review audit trail", tone: "teal" },
-  { name: "Manager", view: "risk", icon: "🎯", action: "Triage risks", tone: "amber" },
-  { name: "Strategist", view: "heatmap", icon: "🔥", action: "Scan heat", tone: "purple" },
-  { name: "Executive", view: "summary", icon: "📈", action: "Read verdict", tone: "sky" },
-  { name: "Security Director", view: "audit", icon: "📜", action: "Verify chain + sign-off", tone: "rose" },
-  { name: "Engineer", view: "blockchain", icon: "⛓", action: "Inspect chain", tone: "indigo" },
+const AUDIENCES = [
+  { href: "/strategic", icon: "📊", label: "Strategic view", desc: "The business choice and what happened." },
+  { href: "/risk", icon: "🎯", label: "Risk view", desc: "Boundary, evidence gaps, and controls." },
+  { href: "/executive", icon: "📈", label: "Executive summary", desc: "Single-page verdict and next decision." },
+  { href: "/engineering", icon: "⛓", label: "Engineering & audit", desc: "Full evidence chain, hashes, and sign-off." },
 ];
 
-const TONE_CLASSES = {
-  teal: { dot: "bg-teal-500", ring: "ring-teal-200/60", card: "border-teal-200" },
-  amber: { dot: "bg-amber-500", ring: "ring-amber-200/60", card: "border-amber-200" },
-  purple: { dot: "bg-purple-500", ring: "ring-purple-200/60", card: "border-purple-200" },
-  sky: { dot: "bg-sky-500", ring: "ring-sky-200/60", card: "border-sky-200" },
-  rose: { dot: "bg-rose-500", ring: "ring-rose-200/60", card: "border-rose-200" },
-  indigo: { dot: "bg-indigo-600", ring: "ring-indigo-200/60", card: "border-indigo-200" },
-} as const;
-
-export default function SplashPage() {
+export default function Home() {
   return (
-    <main className="min-h-screen bg-slate-50 text-slate-900">
-      <header className="border-b border-amber-200 bg-amber-50 px-4 py-1.5 text-center font-semibold tracking-wide text-amber-800 text-[11px]">
-        SIMULATED FIXTURE - no real recommender, customers, or spend. All values are SIMULATED FIXTURES.
-      </header>
-
-      <div className="max-w-4xl mx-auto p-6 space-y-8">
-        <div className="text-center space-y-2">
-          <h1 className="text-2xl sm:text-3xl font-bold leading-tight">Homepage Brand Choice</h1>
-          <p className="text-slate-500 text-sm">A governance dashboard for an AI recommender that maximises add-to-cart.</p>
+    <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-6">
+      <div className="max-w-xl w-full text-center space-y-7">
+        <div className="space-y-2">
+          <h1 className="text-2xl font-bold text-sky-300">Holiday Shelf Placement Choice</h1>
+          <p className="text-slate-300 text-sm">
+            An AI chose the cheapest placement. It stayed in budget — but broke the brand premium rule.
+          </p>
         </div>
-
-        <nav aria-label="Role entry points" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {ROLES.map((r) => {
-            const tone = TONE_CLASSES[r.tone];
-            return (
-              <Link
-                key={r.view}
-                href={`/dashboard?view=${r.view}`}
-                className={`group block rounded-2xl bg-white border ${tone.card} p-5 shadow-sm transition-all duration-200 hover:shadow-md hover:ring-2 ${tone.ring} focus:outline-none focus:ring-2 focus:ring-sky-400`}
-              >
-                <div className="flex items-center gap-3">
-                  <span className="text-3xl" aria-hidden="true">{r.icon}</span>
-                  <div>
-                    <div className="font-semibold text-slate-800 group-hover:text-sky-800">{r.name}</div>
-                    <div className="text-xs text-slate-500 mt-0.5">{r.action}</div>
-                  </div>
-                  <span className={`ml-auto h-3 w-3 rounded-full ${tone.dot}`} title={`${r.name} view`} />
-                </div>
-              </Link>
-            );
-          })}
-        </nav>
-
-        <div className="border-t border-slate-200 pt-4 text-center text-[10px] text-slate-400">
-          Each view is a recorded decision aid, not proof of safety. Export is blocked until a human signs off. See design notes.
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+          {AUDIENCES.map((a) => (
+            <Link key={a.href} href={a.href} className="block group">
+              <div className="flex flex-col items-center gap-3 rounded-xl border border-slate-800 bg-slate-900/60 p-6 text-center transition group-hover:border-sky-600 group-hover:bg-slate-900">
+                <span className="text-4xl">{a.icon}</span>
+                <span className="font-medium text-slate-100">{a.label}</span>
+                <span className="text-xs text-slate-400">{a.desc}</span>
+              </div>
+            </Link>
+          ))}
         </div>
       </div>
     </main>

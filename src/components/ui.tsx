@@ -1,5 +1,6 @@
 import { type ReactNode, type ButtonHTMLAttributes } from "react";
-import type { Severity } from "@/lib/bv/types";
+
+export type Severity = "ok" | "warn" | "bad";
 
 export function Card({ title, children, className }: { title?: string; children: ReactNode; className?: string }) {
   return (

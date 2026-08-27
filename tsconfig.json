@@ -38,7 +38,6 @@
   "exclude": [
     "node_modules",
     "src/lib/__tests__",
-    "src/lib/bv/__tests__",
     "open-next.config.ts"
   ]
 }
