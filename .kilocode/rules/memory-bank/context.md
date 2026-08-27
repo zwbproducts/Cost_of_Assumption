@@ -8,7 +8,7 @@ The template is a clean Next.js 16 starter with TypeScript and Tailwind CSS 4. I
 
 ## Recently Completed
 
-- [x] **Simplified persona routing + graphical chain evidence**
+- [x] **Simplified persona routing + graphical chain evidence** (2026-08-27)
   - Splash role cards now use short, single-action labels (Auditor→"Review audit trail", Manager→"Triage risks", Strategist→"Scan heat", Executive→"Read verdict", Security Director→"Verify chain + sign-off", Engineer→"Inspect chain") with icon + colored status dot for clean, understandable entry.
   - Added a reusable graphical `ChainGraph` SVG component (horizontal blocks + arrows, color per action, hover tooltips with seq/actor/ts/hash) rendering the tamper-evident audit chain as a graphic — used in BOTH the Audit/sign-off view (so Security Directors see their blockchain evidence as a simple chain at a glance) and the Blockchain Evidence view.
   - Fixed `chain-node` hover CSS in `globals.css`; removed now-unused `Avatar` import from dashboard page; resolved `TONE_COLOR` key errors (`rose`/`indigo` → valid `Tone` keys).
@@ -125,6 +125,6 @@ export async function GET() {
 | 2026-08-26 | Colour-first UX: SVG `HeatRing` badges, `ColorKey` legend, severity-coloured leading bars + hover glow borders, metric hover pop; decision-aid kept text-light |
 | 2026-08-26 | Visual-first rewrite: icon-only view tabs (tooltip), `SlotCanvas` 9-tile grid (colour-coded, violation dots, hover glow/scale) replacing slot table, SVG `HeatRing` gauges + `BarChart` SVG across views (governance heat, evidence/signals, compliance-vs-target), data-driven coloured group-column headers + leading severity bars with severity-tinted hover glow, tables & prose collapsed to short captions/icon legends |
 | 2026-08-26 | Simplified all views: icon-only tooltip tabs (first tab renamed "Audit trail - compliance"), HeroCompliance card (big verdict + ring) on board, compact issue-board cards (severity dot + ring), SVG BarCharts everywhere, prose reduced to short captions |
-| 2026-08-27 | Role-based splash hub (`src/app/page.tsx`): Auditor->board, Manager->risk, Strategist->heatmap, Executive->summary, Security Director->sign-off, Engineer->chain; each card icon + 1-line action linking `/dashboard?view=<id>` |
+| 2026-08-27 | Simplified ALL wording across the dashboard (wording sweep): shortened banner, HeroCompliance metric line, issue-board subtitle, slot aria-label/title, risk-item aria-label, RiskDetail caption (Decision aid · review), L×I label, RiskMapView subtitle, Recommendation, Non-claims→Limits, red-line banner, Export status, sign-off option labels (in/out of bounds), BlockchainView caption→"Chain evidence", ChainGraph tooltip (short hash tail). Role tab tooltips shortened. No logic change. All green: typecheck, lint, next build SSG 10/10, 84 tests |
 | 2026-08-27 | Dashboard tabs now show a 1-word label + icon with a short tooltip (no eyestrain); `?view=` URL sync (`viewFromUrl`/`switchView`) so role links land on the right tab |
 | 2026-08-27 | Moved home-page narrative into `docs/SPLASH_DESIGN.md` (scenario, decision question, role mapping, invariants, non-claims) |

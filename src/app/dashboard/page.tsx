@@ -8,12 +8,12 @@ import { summarize } from "@/lib/bv/workflow";
 import { evidenceCoverage, heatScoreFormula, isRiskRed, riskCellPosition, riskPositionConsistent, reviewStatusPill } from "@/lib/bv/view";
 
 const VIEWS: { id: string; label: string; short: string; icon: string }[] = [
-  { id: "board", icon: "📊", short: "Audit", label: "Audit trail & compliance" },
+  { id: "board", icon: "📊", short: "Audit", label: "Compliance audit" },
   { id: "risk", icon: "🎯", short: "Risks", label: "Risk map" },
   { id: "heatmap", icon: "🔥", short: "Heat", label: "Heatmap" },
-  { id: "summary", icon: "📈", short: "Summary", label: "Executive summary" },
-  { id: "audit", icon: "📜", short: "Sign-off", label: "Audit & sign-off" },
-  { id: "blockchain", icon: "⛓", short: "Chain", label: "Blockchain evidence" },
+  { id: "summary", icon: "📈", short: "Summary", label: "Verdict" },
+  { id: "audit", icon: "📜", short: "Sign-off", label: "Sign-off" },
+  { id: "blockchain", icon: "⛓", short: "Chain", label: "Chain evidence" },
 ];
 
 function viewFromUrl(): string {
@@ -208,7 +208,7 @@ export default function DashboardPage() {
 function Banner() {
   return (
     <div className="border-b border-amber-200 bg-amber-50 px-4 py-1.5 text-center font-semibold tracking-wide text-amber-800 text-[11px] print:hidden">
-      SIMULATED FIXTURE - no real recommender, customers, or spend. All values are SIMULATED FIXTURES.
+       SIMULATED FIXTURE · no real spend · sample data only
     </div>
   );
 }
@@ -239,7 +239,7 @@ function BoardView({
           <div className="board-card">
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm font-semibold text-slate-700">Issue board</span>
-              <span className="text-xs text-slate-400">click a card for evidence</span>
+              <span className="text-xs text-slate-400">select for evidence</span>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {columns.map((col) => (
@@ -279,7 +279,7 @@ function HeroCompliance({ run, within, totals, min }: { run: WorkflowRun; within
       <HeatRing score={share} label="Compliance share" size={72} />
       <div className="flex-1">
         <div className={`text-2xl font-extrabold ${within ? "text-emerald-700" : "text-rose-700"}`}>{within ? "COMPLIANT" : "VIOLATION"}</div>
-        <div className="text-xs text-slate-500 mt-0.5">Target {min}%+ required | Observed {totals.complianceShare.toFixed(1)}% | +{totals.totalAdd} add-to-cart</div>
+         <div className="text-xs text-slate-500 mt-0.5">Target ≥{min}% · Observed {totals.complianceShare.toFixed(1)}% · +{totals.totalAdd} ATC</div>
       </div>
       <div className="text-3xl" aria-hidden="true">{within ? "✅" : "🚨"}</div>
     </div>
@@ -315,8 +315,8 @@ function SlotCanvas({ run, within }: { run: WorkflowRun; within: boolean }) {
             <button
               key={s.slot}
               type="button"
-              aria-label={`Slot ${s.slot}: ${s.category}, +${s.actualAdd} ATC, ${s.shareOfHome.toFixed(1)}%, ${s.withinBoundary ? "within" : "violates"} boundary`}
-              title={`S${s.slot} · ${s.category} · +${s.actualAdd} · ${s.shareOfHome.toFixed(1)}%`}
+              aria-label={`S${s.slot} ${s.category} +${s.actualAdd} ${s.shareOfHome.toFixed(1)}% ${s.withinBoundary ? "ok" : "violates"}`}
+              title={`S${s.slot} · ${s.category} · +${s.actualAdd} · ${s.shareOfHome.toFixed(1)}% · ${s.withinBoundary ? "ok" : "violated"}`}
               className={`relative rounded-xl border-2 text-center transition-all duration-200 hover:scale-105 focus:outline-none focus:ring-2 focus:ring-sky-400 ${full ? "bg-emerald-50 border-emerald-200" : !s.withinBoundary ? "bg-rose-50 border-rose-200" : "bg-amber-50 border-amber-200"}`}
             >
               <div className="flex flex-col items-center justify-center h-14">
@@ -342,7 +342,7 @@ function RiskItem({ risk, onSelect, selected }: { risk: RiskEntry; onSelect: () 
     <div
       role="button"
       tabIndex={0}
-      aria-label={`${risk.threat} ${risk.severity} click for evidence`}
+      aria-label={`${risk.threat} · ${risk.severity} · select for evidence`}
       onClick={onSelect}
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(); } }}
       className={`item-card ${selected ? "selected" : ""} ${selected ? "" : risk.severity}`}
@@ -380,11 +380,11 @@ function RiskDetail({ risk, run }: { risk: RiskEntry; run: WorkflowRun }) {
         <HeatRing score={Math.round((risk.likelihood * risk.impact) / 9 * 100)} label={risk.threat} size={60} />
         <div>
           <div className="font-semibold text-slate-800">{risk.threat}</div>
-          <div className="text-xs text-slate-500">L{risk.likelihood} x I{risk.impact} - {risk.severity} - {consistent ? "consistent" : "INCONSISTENT"}</div>
+          <div className="text-xs text-slate-500">L{risk.likelihood} × I{risk.impact} · {risk.severity} · {consistent ? "consistent" : "INCONSISTENT"}</div>
         </div>
         <SeverityIcon severity={risk.severity} />
       </div>
-      <p className="text-xs text-slate-500">Decision aid, not proof. Review: {risk.reviewStatus}.</p>
+      <p className="text-xs text-slate-500">Decision aid · review: {risk.reviewStatus}</p>
       <div className="mt-2 grid grid-cols-3 gap-2 text-[11px]">
         <div><span className="text-slate-400">Cell:</span> <span className="text-slate-700">({pos.likelihood},{pos.impact})</span></div>
         <div><span className="text-slate-400">Likelihood:</span> <span className="text-slate-700">{risk.likelihoodLabel}</span></div>
@@ -409,7 +409,7 @@ function RiskMapView({ run, selectedRisk, setSelectedRiskId }: { run: WorkflowRu
       <div className="board-card">
         <div className="flex items-center justify-between mb-2">
           <span className="text-sm font-semibold text-slate-700">Risk matrix</span>
-          <span className="text-xs text-slate-400" title="Decision aid, not proof">L x I (hover, click)</span>
+          <span className="text-xs text-slate-400" title="Decision aid, not proof">L × I · hover, click</span>
         </div>
         <div className="grid grid-cols-3 gap-2" style={{ aspectRatio: "1 / 1" }}>
           {cells.map((c) => {
@@ -502,13 +502,12 @@ function SummaryView({ run, summary, heat, within, totals, min, exportOk }: { ru
           ]} />
         </div>
         <div className="mt-3 text-xs text-slate-500">
-          Recommendation: <span className={`font-semibold ${summary.verdict === "approved" ? "text-emerald-700" : summary.verdict === "blocked" ? "text-rose-700" : "text-amber-700"}`}>{summary.verdict.toUpperCase()}</span>
-          {" - decision aid, not proof of safety/authorization."}
+          Recommendation: <span className={`font-semibold ${summary.verdict === "approved" ? "text-emerald-700" : summary.verdict === "blocked" ? "text-rose-700" : "text-amber-700"}`}>{summary.verdict.toUpperCase()}</span> · decision aid, not proof
         </div>
       </div>
 
       <div className="board-card">
-        <span className="text-sm font-semibold text-slate-700 block mb-2">Non-claims</span>
+        <span className="text-sm font-semibold text-slate-700 block mb-2">Limits</span>
         <ul className="list-disc list-inside text-slate-500 text-xs space-y-0.5">
           {run.nonClaims.map((c, i) => <li key={i}>{c}</li>)}
         </ul>
@@ -516,10 +515,10 @@ function SummaryView({ run, summary, heat, within, totals, min, exportOk }: { ru
 
       {!within && (
         <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800 flex items-center gap-2">
-          <span>🚨</span>A red-line condition is open. Release needs explicit owner acceptance ({run.config.redLineOwner}).
+          <span>🚨</span>Red-line open · release needs owner acceptance ({run.config.redLineOwner}).
         </div>
       )}
-      <div className="text-xs text-slate-500">Export: {exportOk ? "unlocked" : "blocked until sign-off"}</div>
+      <div className="text-xs text-slate-500">Export: {exportOk ? "unlocked" : "blocked · sign-off"}</div>
     </div>
   );
 }
@@ -573,9 +572,9 @@ function SignoffForm({ run, s }: { run: WorkflowRun; s: { reviewer: string; setR
       <p className="text-[10px] text-slate-400 mb-2">Record verdict + reason.</p>
       <div className="space-y-2 text-sm">
         <select value={s.verdict} onChange={(e) => s.setVerdict(e.target.value as Verdict)} className="border border-slate-200 rounded-lg p-2 w-full text-slate-800 bg-white text-sm">
-          <option value="approved">approved - boundary respected</option>
-          <option value="blocked">blocked - boundary violated</option>
-          <option value="re-review">re-review - investigate</option>
+          <option value="approved">approved — in bounds</option>
+          <option value="blocked">blocked — out of bounds</option>
+          <option value="re-review">re-review — investigate</option>
         </select>
         <input value={s.reviewer} onChange={(e) => s.setReviewer(e.target.value)} placeholder="Your name" className="border border-slate-200 rounded-lg p-2 w-full text-slate-800 bg-white text-sm" />
         <input value={s.reason} onChange={(e) => s.setReason(e.target.value)} placeholder="Reason" className="border border-slate-200 rounded-lg p-2 w-full text-slate-800 bg-white text-sm" />
@@ -593,8 +592,8 @@ function BlockchainView({ run }: { run: WorkflowRun }) {
   return (
     <div className="space-y-4">
       <div className="board-card">
-        <span className="text-sm font-semibold text-slate-700 block mb-1">Blockchain evidence</span>
-        <p className="text-[10px] text-slate-400">Simulated - no real chain queried or tx submitted. Tamper-evidence only.</p>
+        <span className="text-sm font-semibold text-slate-700 block mb-1">Chain evidence</span>
+        <p className="text-[10px] text-slate-400">Simulated · tamper-evidence only · no real chain</p>
         <div className="grid grid-cols-2 gap-3 mt-2 text-[11px]">
           <QaInline q="Run" a={run.runId} />
           <QaInline q="Chain" a="Ethereum (sim testnet)" />
@@ -638,7 +637,7 @@ function ChainGraph({ entries }: { entries: AuditEntry[] }) {
                   <polygon points={`${bw + gap - 1} 27 ${bw + gap + 3} 30 ${bw + gap - 1} 33`} fill={col} />
                 </>
               )}
-              <title>{`Event #${a.seq} - ${a.action} by ${a.actor} at ${a.ts} - hash ${a.hash.slice(0, 24)}`}</title>
+              <title>{`#${a.seq} ${a.action} · ${a.actor} @ ${a.ts} · ${a.hash.slice(0, 10)}`}</title>
             </g>
           );
         })}
