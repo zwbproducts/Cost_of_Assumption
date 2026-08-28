@@ -1,5 +1,10 @@
 # Bridge Validation: Cost of an Unchecked Assumption — Design
 
+> Note: the current user-facing framing is the **retail shelf-placement** scenario.
+> See `docs/SPLASH_DESIGN.md` for the customer-first structure and audience routes.
+> This doc retains the original threat model, data model, and mermaid — the evidence
+> engine is unchanged; only the presented scenario framing moved to retail.
+
 > Status: MVP design. Default mode is **deterministic simulation**. Live testnet
 > execution is gated behind explicit operator approval and env configuration and is
 > only enabled after the simulation safety tests pass.

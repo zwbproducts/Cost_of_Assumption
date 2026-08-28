@@ -8,10 +8,14 @@ The template is a clean Next.js 16 starter with TypeScript and Tailwind CSS 4. I
 
 ## Recently Completed
 
-- [x] **Simplified persona routing + graphical chain evidence** (2026-08-27)
-  - Splash role cards now use short, single-action labels (Auditor→"Review audit trail", Manager→"Triage risks", Strategist→"Scan heat", Executive→"Read verdict", Security Director→"Verify chain + sign-off", Engineer→"Inspect chain") with icon + colored status dot for clean, understandable entry.
-  - Added a reusable graphical `ChainGraph` SVG component (horizontal blocks + arrows, color per action, hover tooltips with seq/actor/ts/hash) rendering the tamper-evident audit chain as a graphic — used in BOTH the Audit/sign-off view (so Security Directors see their blockchain evidence as a simple chain at a glance) and the Blockchain Evidence view.
-  - Fixed `chain-node` hover CSS in `globals.css`; removed now-unused `Avatar` import from dashboard page; resolved `TONE_COLOR` key errors (`rose`/`indigo` → valid `Tone` keys).
+- [x] **Customer-first retail refactor** (2026-08-28)
+  - `/` is now an interactive **shopper journey** (browse → bag → checkout → receipt) using the one selected placement; CTA → `/dashboard`.
+  - `/dashboard` is the **business hub** with 4 audience buttons: Strategic / Risk / Executive / Engineering (each audience route has a Back-to-start link).
+  - Removed the competing giant `/dashboard` board, `/api/dashboard/*`, and `src/lib/bv/*`; engine + 4 legacy tests kept intact.
+  - Added `src/lib/loadTest.ts` (client: state → simulate, classify, export) + shared `TestShell`, `Vis` (`HeatRing`/`Dot`/`ChainGraph`/`BarChart`), `BackToStart`.
+  - Information boundaries enforced: bridge/transaction wording (`recipient`, `contract`, `tx`) isolated to the engineering route and labelled simulated/synthetic; aligned `decision.ts`/`scenario.ts` prose to retail.
+  - All green: typecheck, lint, next build SSG 9/9 pages, 54 tests.
+  - Docs: rewrote `docs/SPLASH_DESIGN.md`, removed obsolete `docs/DASHBOARD.md`, pointer added to `docs/DESIGN.md`.
 - [x] Base Next.js 16 setup with App Router
 - [x] TypeScript configuration with strict mode
 - [x] Tailwind CSS 4 integration
@@ -27,37 +31,26 @@ The template is a clean Next.js 16 starter with TypeScript and Tailwind CSS 4. I
   - Tests (bun test): spend cap, allowlists, duplicate execution, missing approval, kill switch, RPC failure, simulation safety, hash-chain integrity
   - Design doc at docs/DESIGN.md (threat model, data model, mermaid, scenario, assumptions, plan)
   - Live execution path gated behind guards + explicit approval + injected provider; no real signing backend wired yet (returns LIVE_NOT_CONFIGURED)
-- Added Business-Workflow Governance Dashboard (option a: reusable engine foundation)
-  - New primary route `/dashboard` + API routes `/api/dashboard/{simulate,classify,export,state,reset}`
-  - 8-step Monday.com-style board: define → boundary → observations → compare → risk map → heat score → summary → sign-off + audit
-  - Scenario: AI homepage product recommendation maximizing add-to-cart vs compliance red-line (≥12% organic snack slots)
-  - Filterable board with category/slot drill-down, heat-map scoring, 3×3 risk grid
-  - Blockchain Evidence view (secondary) isolated from primary workflow; synthetic hashes only
-  - Hash-chained audit trail (SHA-256, genesis-anchored, tamper-evident recompute)
-  - Human sign-off gating export: classification required (unlocks export), 409 otherwise
-  - 22 new dashboard tests (scoring, controls, risk-map, audit lineage, red-line, blockchain-view, hash-chain) — all green
-  - Minimal determinism fix to `store.ts` `buildPacket` (`generatedAt` derived from deterministic event ts instead of live `new Date()`) restoring packet-hash stability
-- Re-themed `/dashboard` to a Monday.com-style board:
-  - Light enterprise SaaS aesthetic: soft-gray page bg, white rounded-2xl cards, subtle shadows, rounded group headers with colored dot + pill counter
-  - Group columns (New / In review / Approved) with item cards, leading severity indicator bar, colored status pills, owner avatars
-  - Board header with view switcher (Board / Risk map / Heatmap / Executive summary / Audit / Blockchain evidence) + filter bar, sticky with blur backdrop
-  - Item cards: hover lift shadow, selection ring, focus ring, keyboard activation
-  - Monday-style status pills (ok/warn/bad/blue/purple/new) + monochromatic `mono-chip` hashes
-  - Blockchain Evidence isolated as a secondary view, NOT on the primary workflow path
-  - `globals.css` uses plain CSS (no `@apply` on custom classes) for cross-build stability
-  - Added `RiskIcon` to `src/components/ui.tsx`; local `Badge`/`StatusPill` in page with extended tone set
-  - Export gating preserved (409 until sign-off); hash-chained audit trail intact
-  - `eslint.config.mjs` ignores built artifacts (`.next`, `.open-next`)
-- Visual polish applied (Monified): group headers with colored dot + pill count, leading severity border-left bars on item cards, metric-card hover lift, `mono-chip` artefact hashes
+- [superseded 2026-08-28] The earlier competing Business-Workflow Governance Dashboard (the giant `/dashboard` board + `/api/dashboard/*` + `src/lib/bv/*`) was removed to prioritise the customer in the splash and restore a single source of truth. See the 2026-08-28 "Customer-first retail refactor" entry above.
 
 ## Current Structure
 
 | File/Directory | Purpose | Status |
 |----------------|---------|--------|
-| `src/app/page.tsx` | Home page | ✅ Ready |
-| `src/app/layout.tsx` | Root layout | ✅ Ready |
-| `src/app/globals.css` | Global styles | ✅ Ready |
-| `.kilocode/` | AI context & recipes | ✅ Ready |
+| `src/app/page.tsx` | Customer-first shopper journey (splash) | ✅ Ready |
+| `src/app/dashboard/page.tsx` | Business hub (4 audience buttons) | ✅ Ready |
+| `src/app/strategic/page.tsx` | Strategic view | ✅ Ready |
+| `src/app/risk/page.tsx` | Risk view | ✅ Ready |
+| `src/app/executive/page.tsx` | Executive summary | ✅ Ready |
+| `src/app/engineering/page.tsx` | Engineering & audit | ✅ Ready |
+| `src/components/TestShell.tsx` | Shared loader + Back-to-start header | ✅ Ready |
+| `src/components/Vis.tsx` | HeatRing / Dot / ChainGraph / BarChart | ✅ Ready |
+| `src/components/ui.tsx` | Badge / Button / StatusPill / etc | ✅ Ready |
+| `src/lib/loadTest.ts` | Client: state/simulate, classify, export + field helpers | ✅ Ready |
+| `src/lib/*` | Legacy engine (types, store, scenario, simulation, decision, controls, safety, csv, hash, config) | ✅ Ready |
+| `src/app/api/test/*` | Test routes (state/simulate/classify/export/define/live/reset) | ✅ Ready |
+| `docs/SPLASH_DESIGN.md` | Customer-first structure + field mapping | ✅ Ready |
+| Removed | `src/app/api/dashboard/*`, `src/lib/bv/*` (competing concept) | Removed |
 
 ## Current Focus
 
@@ -130,3 +123,4 @@ export async function GET() {
 | 2026-08-27 | Moved home-page narrative into `docs/SPLASH_DESIGN.md` (scenario, decision question, role mapping, invariants, non-claims) |
 | 2026-08-27 | Role-based splash hub (`src/app/page.tsx`): Auditor->board, Manager->risk, Strategist->heatmap, Executive->summary, Security Director->sign-off, Engineer->chain; each card icon + 1-line action linking `/dashboard?view=<id>` |
 | 2026-08-27 | Added graphical `ChainGraph` SVG (horizontal blocks + arrows, colour per action, hover tooltips) to Audit/sign-off view (Security Directors see blockchain evidence as a simple chain) and Blockchain view; fixed `chain-node` hover CSS; dropped unused Avatar import |
+| 2026-08-28 | Refactored to customer-first routing: `/` = interactive shopper journey; `/dashboard` = business hub with 4 audience buttons. Removed competing `/dashboard` board, `/api/dashboard/*`, `src/lib/bv/*`; kept legacy engine + 4 tests. Added `loadTest.ts`, `TestShell`, `Vis` components; enforced information boundaries (bridge/tx jargon only in engineering route, labelled simulated/synthetic); aligned `decision.ts`/`scenario.ts` prose to retail. All green: typecheck, lint, build 9/9, 54 tests |

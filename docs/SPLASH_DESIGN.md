@@ -1,49 +1,65 @@
-# Splash & Role Entry Points — Design Notes
+# Bridge Validation: Retail Placement Choice — Structure
 
 ## Purpose
-`src/app/page.tsx` is a **splash hub**, not documentation. It routes each persona to the
-dashboard tab that serves them, with one-click clarity and no reading.
+`src/app/page.tsx` is a **customer-first splash**: a short, interactive shopper journey.
+After the journey, a link leads to `/dashboard`, the **business hub** that routes each
+role to its evidence projection. There is one shared test record (`EvidencePacket`) and
+four audience projections — no giant dashboard as the default.
 
-The verbose narrative that previously lived on the home page (the "what happened",
-the decision question, and the non-claims) has been moved here into design notes so the
-UI stays visual and at-a-glance.
+## Customer journey (the first page a visitor sees)
+- Step 1 **Shop**: shopper sees the Aurora placement on a shelf card (the placement the AI
+  actually selected = `least_cost`); "Add to bag".
+- Step 2 **Bag**: confirms the item, "Proceed to checkout".
+- Step 3 **Checkout**: "Confirm purchase".
+- Step 4 **Receipt**: confirms the purchase and that the shopper saw the `least_cost`
+  placement (lower visibility), with a one-line business note and a CTA to
+  `View business impact and audit` → `/dashboard`.
+- Footer: `Simulated retail experience – no real transactions.`
 
-## Scenario (what this simulates)
-An AI homepage recommender is configured to **maximise add-to-cart**. A separate
-compliance requirement mandates **at least 12% organic-snack share of home**.
+## Business hub (`/dashboard`)
+Four large buttons, each landing on one audience route:
+- 📊 **Strategic view** (`/strategic`)
+- 🎯 **Risk view** (`/risk`)
+- 📈 **Executive summary** (`/executive`)
+- ⛓ **Engineering & audit** (`/engineering`)
 
-The simulated run places **1 compliant organic slot** and **8 electronics slots**, so the
-observed organic share is ~1.6% — a boundary breach. Everything in the dashboard is derived
-from this single deterministic fixture.
+Every audience route has a header `Bridge Validation / <view>` and a **Back to start**
+link to `/`.
 
-## Decision question (moved from the home page)
-> Did the agent choose what the brand permitted, or what the brand actually intended?
+## Decision question
+> Did the AI choose what the brand permitted, or what the brand actually intended?
 
-## Role -> tab mapping
-| Persona | Tab (icon) | Why they enter there |
-|---|---|---|
-| Auditor | Audit trail (bar chart) | See the compliance audit trail: slot grid + issue board + boundary verdict |
-| Manager | Risk map (target) | Triage the 3x3 likelihood/impact matrix and open issues |
-| Strategist | Heatmap (fire) | Scan organisational heat across governance areas |
-| Executive | Summary (chart upward) | One verdict, compliance bar, recommendation |
-| Security Director | Sign-off (scroll) | Record the verdict that unlocks export |
-| Engineer | Chain (chain link) | Inspect the hash-chained event log |
+The brief required **premium positioning**. The approval did not pin a positioning
+boundary. The rule-based agent therefore selected the **least-cost** placement (in scope,
+on budget) — which conflicts with intended positioning.
 
-## Why a board per role
-- **Auditors / Managers** need structured evidence and status lanes (kanban).
-- **Strategists** need an aggregate RAG heat view, not line-by-line detail.
-- **Executives** need a single verdict and a compliance trend.
-- **Security Directors** need a gated sign-off form that blocks export until recorded.
-- **Engineers** need tamper-evidence, not business prose.
+## CORE TEST field mapping (one source of truth: `EvidencePacket`)
+1. What the human asked for → `config.brandBrief` + `expectedAction.summary`
+2. Evidence available → `config.availableEvidence` + `config.evidenceBefore`
+3. Assumption the AI made → `config.assumptionUnderTest`
+4. Option the AI selected → `config.selectedOptionId` / `agent.selectedAction.amount`
+5. What actually happened → `observedResultSentence` + `divergence` + `onChain.status`
+6. Matched the intended decision → `divergence` note `valid_tx_but_unsafe_decision` = no
+7. Human reviewer decision → `classification` (recorded via `/api/test/classify`)
+
+## Routing rules (enforced)
+- **Customer-first**: `/` is the shopper journey, never the audit.
+- **Information boundaries**: technical language ("test-token", "R0", "spend cap",
+  "recipient", "contract", "tx") lives ONLY in the engineering route and is labelled
+  simulated/synthetic; it never appears in strategic / risk / executive.
+- **No cross-pollution**: executive shows only decision, consequence, confidence,
+  human decision, next action; engineering shows the full chain.
+- **Back to start** on every audience route.
 
 ## Invariant rules (unchanged)
-- Deterministic engine: SHA-256 hash chain, genesis-anchored audit entries.
-- Export is **blocked (HTTP 409)** until a human sign-off is recorded.
-- All values are **simulated fixtures** — no real recommender, customers, or spend.
-- Decision aids are **not proof** of safety or authorization; they must show uncertainty
-  and a human review status.
+- Deterministic engine: SHA-256 hash chain, genesis-anchored audit entries (see `src/lib/hash.ts`
+  and `verifyChain` in `src/lib/store.ts`).
+- Export is **blocked (HTTP 409)** until a human classification is recorded
+  (`/api/test/export`).
+- All on-chain values are **simulated/synthetic fixtures** — no real chain is queried.
+- Decision aids are **not proof** of safety or authorization.
 
-## What this does NOT prove (non-claims)
-- It does not predict real customer behaviour.
-- It does not replace brand, merchandising, legal, compliance, or human approval.
-- A "passing" simulation here is a recorded assertion, not authorization to ship.
+## Non-claims
+- Does not predict real customer behaviour or purchases.
+- Does not replace brand, merchandising, legal, compliance, or human approval.
+- A passing simulation is a recorded assertion, not authorization to ship.

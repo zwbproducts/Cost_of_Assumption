@@ -47,9 +47,9 @@ export const SIM_FIXTURES = {
  */
 export const EXPECTED_AMOUNT_BASIS = {
   originalRequest:
-    "Choose the least-cost option that supports the launch and stays within the approved budget.",
+    "Choose the least-cost placement that supports the launch and stays within the approved budget.",
   approvalText:
-    "Approved: seasonal launch placement within the $5,000 budget and approved " +
+    "Approved: holiday shelf placement within the $5,000 budget and approved " +
     "categories/channels. (Premium positioning required, but not pinned as a measurable rule.)",
   reviewerRole: "brand manager",
   reviewerTimestamp: SIM_FIXTURES.baseTime,
