@@ -67,7 +67,14 @@ export default function Home() {
           <ProgressDot active={step === "evidence"} label="Evidence" />
         </nav>
 
-        {step === "brief" && <Brief onNext={() => setStep("showroom")} brief={cfg.brandBrief} />}
+        {step === "brief" && selected && intended && (
+          <Brief
+            onNext={() => setStep("showroom")}
+            selected={selected}
+            intended={intended}
+            budget={cfg.authority.limits.maxSpend}
+          />
+        )}
         {step === "showroom" && selected && (
           <Showroom options={cfg.options} selected={selected} onNext={() => setStep("decision")} />
         )}
@@ -125,34 +132,116 @@ function ProgressDot({ active, label }: { active: boolean; label: string }) {
   );
 }
 
-function Brief({ onNext, brief }: { onNext: () => void; brief: string }) {
+function Brief({
+  onNext,
+  selected,
+  intended,
+  budget,
+}: {
+  onNext: () => void;
+  selected: RetailOption;
+  intended: RetailOption;
+  budget: string;
+}) {
   return (
-    <section aria-labelledby="brief-heading" className="space-y-5 text-center">
-      <div className="space-y-1">
-        <h2 id="brief-heading" className="text-xl font-semibold text-slate-100">
-          Choose a display for the Aurora seasonal launch.
+    <section aria-labelledby="brief-heading" className="space-y-6 text-center">
+      <div className="space-y-2">
+        <p className="text-xs uppercase tracking-widest text-rose-400">Bridge Validation</p>
+        <h2 id="brief-heading" className="text-xl font-semibold leading-snug text-slate-100">
+          An AI-assisted retail decision can follow the visible rules and still undermine the
+          intended customer experience.
         </h2>
-        <p className="text-sm text-slate-300">Three visual goals guide the placement:</p>
       </div>
-      <ul className="flex flex-col sm:flex-row justify-center gap-3 text-sm">
-        <li className="flex items-center gap-2 text-slate-200">
-          <Dot color={TONE.ok} label="" /> Be noticed
-        </li>
-        <li className="flex items-center gap-2 text-slate-200">
-          <Dot color={TONE.warn} label="" /> Protect the premium brand
-        </li>
-        <li className="flex items-center gap-2 text-slate-200">
-          <Dot color={TONE.ok} label="" /> Stay within the approved budget
-        </li>
-      </ul>
-      <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 text-left">
-        <p className="text-xs text-slate-400">The brief</p>
-        <p className="text-sm text-slate-300">{brief}</p>
+
+      <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-5 text-left space-y-4">
+        <div>
+          <p className="text-xs uppercase tracking-wide text-slate-400">The buyer problem</p>
+          <p className="text-sm text-slate-300 mt-1">
+            A premium brand launched the <strong className="text-slate-100">Aurora seasonal line</strong> and
+            asked an AI-assisted system to place it. The brief: maximise visibility, protect the premium
+            brand, stay within the approved budget.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-center">
+          <Pillar icon="👀" label="Be noticed" />
+          <Pillar icon="🛡️" label="Protect the premium brand" />
+          <Pillar icon="💰" label="Stay within budget" />
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+          <IntentCard
+            title="What the retailer wanted"
+            label={intended.label}
+            detail={`${intended.visibility} visibility · ${intended.positioning}`}
+            tone="ok"
+          />
+          <IntentCard
+            title="What the system chose"
+            label={selected.label}
+            detail={`${selected.visibility} visibility · ${selected.positioning}`}
+            tone="bad"
+            tag="Least-cost · back corner"
+          />
+        </div>
+
+        <div className="rounded-lg border border-amber-800/40 bg-amber-900/10 px-4 py-3 space-y-1">
+          <p className="text-sm font-medium text-amber-200">
+            It passed the formal checks. It failed the commercial intent.
+          </p>
+          <p className="text-xs text-amber-200/80">
+            Within budget ({selected.cost} of {budget} cap) <Dot color={TONE.ok} label="yes" /> · In approved
+            scope <Dot color={TONE.ok} label="yes" /> · Matches premium intent{" "}
+            <Dot color={TONE.bad} label="no" />
+          </p>
+          <p className="text-xs text-slate-400 pt-1">
+            The evidence gap: premium positioning was in the brief but was never expressed as a measurable
+            minimum, so the cheapest valid option was selected.
+          </p>
+        </div>
       </div>
+
       <Button onClick={onNext} aria-label="Enter the showroom">
-        Enter the showroom
+        See the placement in the showroom
       </Button>
     </section>
+  );
+}
+
+function Pillar({ icon, label }: { icon: string; label: string }) {
+  return (
+    <div className="rounded-lg border border-slate-800 bg-slate-950 py-3">
+      <div className="text-xl">{icon}</div>
+      <div className="text-xs text-slate-300 mt-1">{label}</div>
+    </div>
+  );
+}
+
+function IntentCard({
+  title,
+  label,
+  detail,
+  tone,
+  tag,
+}: {
+  title: string;
+  label: string;
+  detail: string;
+  tone: "ok" | "bad";
+  tag?: string;
+}) {
+  const ring = tone === "ok" ? "border-emerald-700/50" : "border-rose-700/50";
+  const dot = tone === "ok" ? TONE.ok : TONE.bad;
+  return (
+    <div className={`rounded-lg border ${ring} bg-slate-950 p-3 text-left`}>
+      <p className="text-xs text-slate-400">{title}</p>
+      <p className="text-sm font-semibold text-slate-100 mt-1">{label}</p>
+      <p className="text-xs text-slate-400">{detail}</p>
+      {tag ? <p className="text-[10px] text-rose-300 mt-1">{tag}</p> : null}
+      <div className="mt-1">
+        <Dot color={dot} label={tone === "ok" ? "intended" : "chosen"} />
+      </div>
+    </div>
   );
 }
 
