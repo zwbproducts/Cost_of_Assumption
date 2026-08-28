@@ -81,7 +81,7 @@ export default function Home() {
           />
         )}
         {step === "doubt" && <DoubtView matched={matched} onNext={() => setStep("evidence")} />}
-        {step === "evidence" && (
+        {step === "evidence" && selected && intended && (
           <EvidenceRoom
             packet={packet}
             selected={selected}
@@ -436,10 +436,11 @@ function EvidenceRoom({
       </EvidenceCard>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2">
-        <Link href="/dashboard" passHref>
-          <a className="block text-center rounded-lg border border-slate-700 bg-slate-900/60 hover:bg-slate-800 py-2 text-sm text-slate-100">
-            Audience doors
-          </a>
+        <Link
+          href="/dashboard"
+          className="block text-center rounded-lg border border-slate-700 bg-slate-900/60 hover:bg-slate-800 py-2 text-sm text-slate-100"
+        >
+          Audience doors
         </Link>
         <a
           href="https://github.com/zwbproducts/Cost_of_Assumption"

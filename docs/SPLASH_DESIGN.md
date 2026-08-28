@@ -1,54 +1,72 @@
 # Bridge Validation: Retail Placement Choice — Structure
 
 ## Purpose
-`src/app/page.tsx` is a **customer-first splash**: a short, interactive shopper journey.
-After the journey, a link leads to `/dashboard`, the **business hub** that routes each
-role to its evidence projection. There is one shared test record (`EvidencePacket`) and
-four audience projections — no giant dashboard as the default.
+`src/app/page.tsx` is a **first-time retail splash**: a five-step showroom experience
+that lets a visitor feel the placement decision before seeing any technical evidence.
+After the journey, the evidence room offers **audience doors** — optional role paths
+that all return to the start. There is one shared test record (`EvidencePacket`) and
+four audience projections. No dashboard is the default; no logs, hashes, or jargon
+appear up front.
 
-## Customer journey (the first page a visitor sees)
-- Step 1 **Shop**: shopper sees the Aurora placement on a shelf card (the placement the AI
-  actually selected = `least_cost`); "Add to bag".
-- Step 2 **Bag**: confirms the item, "Proceed to checkout".
-- Step 3 **Checkout**: "Confirm purchase".
-- Step 4 **Receipt**: confirms the purchase and that the shopper saw the `least_cost`
-  placement (lower visibility), with a one-line business note and a CTA to
-  `View business impact and audit` → `/dashboard`.
-- Footer: `Simulated retail experience – no real transactions.`
+## First-time journey (the first page a visitor sees)
+
+A premium brand launches the **Aurora seasonal product line**. The brief: maximise
+visibility while preserving the premium brand, within an approved budget. The simulated
+decision agent picks the cheapest valid placement (least-cost, weak visibility) because
+the premium-positioning requirement is not expressed as a measurable rule.
+
+1. **Brief** — "Choose a display for the Aurora seasonal launch." Three visual goals:
+   *Be noticed*, *Protect the premium brand*, *Stay within the approved budget*.
+   Primary button: **Enter the showroom**.
+2. **Showroom** — three placement cards (Premium $4,800 / highest, Balanced $2,400 /
+   moderate, Least-cost $900 / weak). The system's choice is highlighted. The tension
+   is visible: cheaper does not automatically mean better for the brand goal.
+3. **Decision** — "The system chose: Least-cost placement." Why: a valid in-budget option,
+   cheapest path. Three indicators: *Within budget YES*, *In approved scope YES*,
+   *Matches premium brand intent NO*. Prominent: **"Allowed by the rules. Wrong for the
+   intended outcome."** The agent is labelled a *simulated decision agent* /
+   *deterministic fixture* — never said to reason, intend, or deceive.
+4. **Moment of doubt** — "Would you approve this placement for the Aurora launch?"
+   Approve / Send for review / Reject. Framed as a teaching moment, not market research.
+   Reveals: "The budget check passed. The brand-intent check was missing."
+5. **Evidence room** — expandable cards, revealed only after the visible choice:
+   A. Human brief · B. Declared authority · C. Unchecked assumption ·
+   D. Expected versus observed · E. Control gap · F. Human decision (classify) ·
+   G. Recommended controls. Visual flow: brief → rule → choice → missing check → review.
+   Then **audience doors** back to `/dashboard`, and a *How it works* link.
 
 ## Business hub (`/dashboard`)
-Four large buttons, each landing on one audience route:
-- 📊 **Strategic view** (`/strategic`)
-- 🎯 **Risk view** (`/risk`)
-- 📈 **Executive summary** (`/executive`)
-- ⛓ **Engineering & audit** (`/engineering`)
+Four audience doors, each returning to `/`:
+- **Retail & brand view** (`/strategic`) — brief, chosen placement, consequence, "Would this protect the launch?"
+- **Risk view** (`/risk`) — boundary, evidence gaps, controls, reviewer classification.
+- **Executive summary** (`/executive`) — one decision, one consequence, one recommended control.
+- **Engineering & audit** (`/engineering`) — full event timeline, provenance, hashes, export, non-claims.
 
-Every audience route has a header `Bridge Validation / <view>` and a **Back to start**
-link to `/`.
+Every audience route shows a **Bridge Validation / \<view\>** header and a **Back to start** link to `/`.
 
 ## Decision question
 > Did the AI choose what the brand permitted, or what the brand actually intended?
 
-The brief required **premium positioning**. The approval did not pin a positioning
-boundary. The rule-based agent therefore selected the **least-cost** placement (in scope,
-on budget) — which conflicts with intended positioning.
+The brief required **premium positioning**; the approval pinned budget and scope but not a
+positioning boundary, so the rule-based agent selected the cheapest valid option —
+in scope, on budget, yet conflicting with the intended premium outcome.
 
 ## CORE TEST field mapping (one source of truth: `EvidencePacket`)
 1. What the human asked for → `config.brandBrief` + `expectedAction.summary`
 2. Evidence available → `config.availableEvidence` + `config.evidenceBefore`
 3. Assumption the AI made → `config.assumptionUnderTest`
-4. Option the AI selected → `config.selectedOptionId` / `agent.selectedAction.amount`
-5. What actually happened → `observedResultSentence` + `divergence` + `onChain.status`
+4. Option the AI selected → `config.selectedOptionId` / `config.selectedOptionLabel`
+5. What actually happened → `observedResultSentence` + `divergence`
 6. Matched the intended decision → `divergence` note `valid_tx_but_unsafe_decision` = no
 7. Human reviewer decision → `classification` (recorded via `/api/test/classify`)
 
 ## Routing rules (enforced)
-- **Customer-first**: `/` is the shopper journey, never the audit.
-- **Information boundaries**: technical language ("test-token", "R0", "spend cap",
-  "recipient", "contract", "tx") lives ONLY in the engineering route and is labelled
-  simulated/synthetic; it never appears in strategic / risk / executive.
-- **No cross-pollution**: executive shows only decision, consequence, confidence,
-  human decision, next action; engineering shows the full chain.
+- **Customer-first**: `/` is the showroom journey, never the audit.
+- **Information boundaries**: blockchain/engineering language ("wallet", "contract",
+  "recipient", "gas", "tx", hashes) lives ONLY in the engineering route and is labelled
+  simulated/synthetic; it never appears in strategic / risk / executive / the showroom.
+- **No cross-pollution**: each audience door shows only its slice; retailer is never
+  dropped into blockchain fields; engineer keeps the raw record.
 - **Back to start** on every audience route.
 
 ## Invariant rules (unchanged)
@@ -56,10 +74,12 @@ on budget) — which conflicts with intended positioning.
   and `verifyChain` in `src/lib/store.ts`).
 - Export is **blocked (HTTP 409)** until a human classification is recorded
   (`/api/test/export`).
-- All on-chain values are **simulated/synthetic fixtures** — no real chain is queried.
-- Decision aids are **not proof** of safety or authorization.
+- All values are **deterministic simulated fixtures** — no real chain, brand, customer,
+  sale, or transaction is represented.
+- Decision aids are **not proof** of safety, intent, deception, or authorisation.
 
 ## Non-claims
-- Does not predict real customer behaviour or purchases.
-- Does not replace brand, merchandising, legal, compliance, or human approval.
-- A passing simulation is a recorded assertion, not authorization to ship.
+- Deterministic simulation; no live AI model behaviour is proven.
+- No real brand, customer, sale, or customer loss is represented.
+- Does not establish intent, hidden reasoning, or universal agent behaviour.
+- Does not replace QA, security review, compliance, brand review, or human authorisation.

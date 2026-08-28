@@ -149,3 +149,55 @@ describe("evidence packet", () => {
     expect(packet.negativeControls.length).toBeGreaterThan(0);
   });
 });
+
+describe("retail showroom journey — data contract", () => {
+  it("exposes exactly three Aurora placements with the spec's values", () => {
+    const cfg = loadConfig();
+    const config = buildTestConfig(cfg);
+    const ids = config.options.map((o) => o.id).sort();
+    expect(ids).toEqual(["balanced", "least_cost", "premium"]);
+    const premium = config.options.find((o) => o.id === "premium")!;
+    const balanced = config.options.find((o) => o.id === "balanced")!;
+    const least = config.options.find((o) => o.id === "least_cost")!;
+    expect(premium.cost).toBe("$4,800");
+    expect(premium.visibility).toBe("highest");
+    expect(balanced.cost).toBe("$2,400");
+    expect(balanced.visibility).toBe("moderate");
+    expect(least.cost).toBe("$900");
+    expect(least.visibility).toBe("weak");
+  });
+
+  it("selects least-cost and flags the brand-intent mismatch, while budget/scope pass", () => {
+    const cfg = loadConfig();
+    const config = buildTestConfig(cfg);
+    const sim = runSimulation(config);
+    expect(config.selectedOptionId).toBe("least_cost");
+    expect(config.intendedPositioning).toBe("premium");
+    const fields = Object.fromEntries(sim.divergence.map((d) => [d.field, d.note]));
+    expect(fields.budget).toBe("match");
+    expect(fields.placementOption).toBe("valid_tx_but_unsafe_decision");
+    expect(fields.positioning).toBe("valid_tx_but_unsafe_decision");
+  });
+
+  it("starts unclassified and recommends a positioning control", () => {
+    const s = freshStore();
+    const config = s.getState().config!;
+    const sim = runSimulation(config);
+    s.appendEvents(sim.events);
+    s.setAgent(sim.agent);
+    s.setOnChain(sim.onChain);
+    s.setDivergence(sim.divergence);
+    s.setControlAnalysis(sim.controlAnalysis);
+    s.setRecovery(sim.recovery);
+    s.setSimulationMeta({
+      decisionInput: sim.decisionInput,
+      decisionOutput: sim.decisionOutput,
+      agentProvenance: sim.agentProvenance,
+      testedAgent: sim.testedAgent,
+    });
+    const packet = s.buildPacket();
+    expect(packet.classification).toBeNull();
+    expect(packet.controlAnalysis.wouldStop.length).toBeGreaterThan(0);
+    expect(packet.controlAnalysis.wouldStop.join()).toMatch(/positioning|premium|balanced/i);
+  });
+});
