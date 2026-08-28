@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 const VIEWS = [
-  { href: "/strategic", icon: "📊", label: "Strategic view", desc: "The business choice and what happened." },
+  { href: "/strategic", icon: "📊", label: "Retail & brand view", desc: "The placement, the consequence, and whether this protects the launch." },
   { href: "/risk", icon: "🎯", label: "Risk view", desc: "Boundary, evidence gaps, and controls." },
   { href: "/executive", icon: "📈", label: "Executive summary", desc: "One-page verdict and next decision." },
   { href: "/engineering", icon: "⛓", label: "Engineering & audit", desc: "Full evidence chain, hashes, and sign-off." },
