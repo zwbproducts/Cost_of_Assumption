@@ -78,6 +78,7 @@ export default function Home() {
             matched={matched}
             divergence={packet.divergence}
             budget={cfg.authority.limits.maxSpend}
+            onNext={() => setStep("doubt")}
           />
         )}
         {step === "doubt" && <DoubtView matched={matched} onNext={() => setStep("evidence")} />}
@@ -215,12 +216,14 @@ function DecisionView({
   matched,
   divergence,
   budget,
+  onNext,
 }: {
   selected: RetailOption;
   intended: RetailOption;
   matched: boolean;
   divergence: Divergence[];
   budget: string;
+  onNext: () => void;
 }) {
   const budgetOk = divergence.find((d) => d.field === "budget")?.note === "match";
   return (
@@ -257,6 +260,11 @@ function DecisionView({
       <p className="text-center text-xs text-slate-400">
         The agent is a deterministic fixture, not an autonomous decision-maker.
       </p>
+      <div className="flex justify-center pt-2">
+        <Button onClick={onNext} aria-label="Continue to review">
+          Continue to review
+        </Button>
+      </div>
     </section>
   );
 }
@@ -435,21 +443,29 @@ function EvidenceRoom({
         </ul>
       </EvidenceCard>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2">
-        <Link
-          href="/dashboard"
-          className="block text-center rounded-lg border border-slate-700 bg-slate-900/60 hover:bg-slate-800 py-2 text-sm text-slate-100"
-        >
-          Audience doors
-        </Link>
-        <a
-          href="https://github.com/zwbproducts/Cost_of_Assumption"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-center rounded-lg border border-slate-700 bg-slate-900/60 hover:bg-slate-800 py-2 text-sm text-sky-300"
-        >
-          How it works
-        </a>
+      <div className="space-y-3 pt-3">
+        <h3 className="text-center text-sm font-semibold text-slate-200">Where would you like to go next?</h3>
+        <div className="flex justify-center">
+          <Link
+            href="/dashboard"
+            className="inline-flex items-center justify-center rounded-lg bg-sky-600 hover:bg-sky-500 px-6 py-3 text-base font-semibold text-white border border-sky-500"
+          >
+            Explore the evidence in depth
+          </Link>
+        </div>
+        <div className="flex justify-center gap-4 text-xs">
+          <Link href="/" className="text-slate-400 hover:text-sky-300 underline">
+            Back to start
+          </Link>
+          <a
+            href="https://github.com/zwbproducts/Cost_of_Assumption"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-slate-400 hover:text-sky-300 underline"
+          >
+            How it works
+          </a>
+        </div>
       </div>
       <div className="flex justify-center gap-4 pt-2">
         <HeatRing score={matched ? 10 : 90} label="Result" size={44} />
